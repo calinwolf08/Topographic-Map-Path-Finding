@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-import cropped_image
+from extract_contours import ContourExtractor
 
 class MaskGenerator:
 	low_blue = np.array([50, 35, 100])
@@ -22,20 +22,24 @@ class MaskGenerator:
 		self.blue_mask = None
 		self.black_mask = None
 		self.red_lines_mask = None
-		self.combined_masks = None
+		self.topo_mask = None
+
+	def get_topo_mask():
+		if self.topo_mask == None:
+			self.generate_masks()
+
+		return self.topo_mask
 
 	def generate_masks(self):
 		self.blue_mask = self.generate_blue_mask()
 		self.black_mask = self.generate_black_mask()
 		self.red_lines_mask = self.generate_red_lines_mask()
-
-		temp_mask = cv2.bitwise_and(self.blue_mask, self.black_mask)
-		self.combined_masks = cv2.bitwise_and(temp_mask, self.red_lines_mask)
+		self.topo_mask = self.__combine_masks()
 
 	def generate_blue_mask(self):
 		blue_range = self.__get_image_in_range_from_hsv(MaskGenerator.low_blue, MaskGenerator.high_blue)
 		filled_blue_contours = self.__get_filled_contours_from_image(blue_range)
-		blue_mask = self.convert_image_to_mask(filled_blue_contours)
+		blue_mask = MaskGenerator.convert_image_to_mask(filled_blue_contours)
 		
 		return blue_mask
 
@@ -46,13 +50,13 @@ class MaskGenerator:
 
 		black_contours_mask = MaskGenerator.convert_image_to_mask(dilated_black_contours)
 		
-		black_contours_mask_reduced = cropped_image.CroppedImage.reduce_image_contours(black_contours_mask, 75)
+		black_contours_mask_reduced = ContourExtractor.reduce_image_contours(black_contours_mask, 75)
 		black_contours_mask_reduced_color = self.__add_color_to_image(black_contours_mask_reduced)
 		
-		(connected_mask, connected_color, contours_img) = cropped_image.CroppedImage.connect_contours_loop(
+		(connected_mask, connected_color, contours_img) = ContourExtractor.connect_contours_loop(
 			self.bgr_image, black_contours_mask_reduced, black_contours_mask_reduced_color, dist=30, maxIters=10)
 
-		black_contours_connected_reduced = cropped_image.CroppedImage.reduce_image_contours(connected_mask, 1000)
+		black_contours_connected_reduced = ContourExtractor.reduce_image_contours(connected_mask, 1000)
 		black_mask = MaskGenerator.dilate_image(black_contours_connected_reduced)
 
 		return black_mask
@@ -60,9 +64,7 @@ class MaskGenerator:
 	def generate_red_lines_mask(self):
 		red_range = self.__get_image_in_range_from_hsv(MaskGenerator.low_red, MaskGenerator.high_red)
 		red_range_color = self.__add_color_to_image(red_range)
-
 		lines = MaskGenerator.get_horizontal_lines(red_range_color)
-
 		lines_image = self.__get_lines_image(lines)
 		red_lines_mask = MaskGenerator.convert_image_to_mask(lines_image)
 
@@ -73,7 +75,7 @@ class MaskGenerator:
 		
 		return image_in_range
 
-	def __add_color_to_image(image):
+	def __add_color_to_image(self, image):
 		colored_image = cv2.bitwise_and(self.bgr_image, self.bgr_image, mask=image)
 
 		return colored_image
@@ -85,7 +87,7 @@ class MaskGenerator:
 
 		return filled_contours
 
-	def __get_lines_image(lines):
+	def __get_lines_image(self, lines):
 		height, width, chanels = self.temp_image.shape
 
 		if lines is not None:
@@ -111,6 +113,16 @@ class MaskGenerator:
 		self.__clear_temp_image()
 
 		return lines_image
+
+	def __combine_masks(self):
+		non_blue_mask = cv2.bitwise_not(self.blue_mask)
+		non_black_mask = cv2.bitwise_not(self.black_mask)
+		non_red_mask = cv2.bitwise_not(self.red_lines_mask)
+
+		temp = cv2.bitwise_and(non_blue_mask, non_black_mask)
+		combined_mask = cv2.bitwise_and(temp, non_red_mask)
+
+		return combined_mask
 
 	def __clear_temp_image(self):
 		self.temp_image = cv2.bitwise_xor(self.temp_image, self.temp_image)
