@@ -669,7 +669,7 @@ def draw_path(img, node, dim):
 		parent = node.parent
 		toX, toY = convert_grid_to_coord(parent.x, parent.y, dim)
 
-		cv2.line(path_img,(fromX,fromY),(toX,toY),(0,255,255),2)
+		cv2.line(path_img,(fromX,fromY),(toX,toY),(0,0,255),2)
 
 		node = parent
 		fromX = toX
@@ -754,7 +754,9 @@ def run(name):
 	node = find_path(grid, grid_dim, sx, sy, ex, ey)
 	
 	path_img = draw_path(grid_img, node, int(rows / grid_dim))
+	path_img2 = draw_path(cropped_img, node, int(rows / grid_dim))
 	cv2.imshow("path_img", path_img)
+	cv2.imshow("path_img2", path_img2)
 
 	print("done")
 	cv2.waitKey(0)
