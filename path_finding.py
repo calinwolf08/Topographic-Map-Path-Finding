@@ -23,7 +23,7 @@ class PathFinder:
 		if self.cropped_img is None:
 			self.get_start_end_image()
 
-		self.cropped_img.extract_contours()
+		self.cropped_img.get_contours()
 
 	def get_start_end_image(self, padding = 20, resize_factor = 6):
 		self.__get_start_end_points()

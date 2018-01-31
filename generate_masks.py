@@ -1,72 +1,86 @@
 import cv2
 import numpy as np
 
-from extract_contours import ContourExtractor
+from extract_contours import ContourExtractor, ContourConnector
+from helper_functions import Helper
 
 class MaskGenerator:
-	low_blue = np.array([50, 35, 100])
-	high_blue = np.array([100, 150, 255])
+	__low_blue = np.array([50, 35, 100])
+	__high_blue = np.array([100, 150, 255])
 
-	low_black = np.array([0, 0, 0])
-	high_black = np.array([100, 100, 150])
+	__low_black = np.array([0, 0, 0])
+	__high_black = np.array([100, 100, 150])
 
-	low_red = np.array([0, 50, 200])
-	high_red = np.array([10, 255, 255])
+	__low_red = np.array([0, 50, 200])
+	__high_red = np.array([10, 255, 255])
 
-	def __init__(self, image):
-		self.bgr_image = image
+	def __init__(self, cv_image):
+		self.bgr_image = cv_image
 
 		self.hsv_image = cv2.cvtColor(self.bgr_image, cv2.COLOR_BGR2HSV)
 		self.temp_image = cv2.bitwise_xor(self.bgr_image, self.bgr_image)
 		
-		self.blue_mask = None
-		self.black_mask = None
-		self.red_lines_mask = None
-		self.topo_mask = None
+		self.image_masks = MaskGenerator.ImageMasks()
 
-	def get_topo_mask():
-		if self.topo_mask == None:
+	class ImageMasks:
+		def __init__(self):
+			self.topo_mask = None
+			self.blue_mask = None
+			self.black_mask = None
+			self.red_lines_mask = None
+
+		def is_generated(self):
+			is_generated = True
+
+			if self.topo_mask == None or self.blue_mask == None or self.black_mask == None or self.red_lines_mask == None:
+				is_generated = False
+
+			return is_generated
+
+	def get_image_masks(self):
+		if not self.image_masks.is_generated():
 			self.generate_masks()
 
-		return self.topo_mask
+		return self.image_masks
 
 	def generate_masks(self):
-		self.blue_mask = self.generate_blue_mask()
-		self.black_mask = self.generate_black_mask()
-		self.red_lines_mask = self.generate_red_lines_mask()
-		self.topo_mask = self.__combine_masks()
+		self.image_masks.blue_mask = self.generate_blue_mask()
+		self.image_masks.black_mask = self.generate_black_mask()
+		self.image_masks.red_lines_mask = self.generate_red_lines_mask()
+		self.image_masks.topo_mask = self.__generate_topo_mask()
 
 	def generate_blue_mask(self):
-		blue_range = self.__get_image_in_range_from_hsv(MaskGenerator.low_blue, MaskGenerator.high_blue)
+		blue_range = self.__get_image_in_range_from_hsv(MaskGenerator.__low_blue, MaskGenerator.__high_blue)
 		filled_blue_contours = self.__get_filled_contours_from_image(blue_range)
-		blue_mask = MaskGenerator.convert_image_to_mask(filled_blue_contours)
+		blue_mask = Helper.convert_image_to_mask(filled_blue_contours)
 		
 		return blue_mask
 
 	def generate_black_mask(self):
-		black_range = self.__get_image_in_range_from_hsv(MaskGenerator.low_black, MaskGenerator.high_black)
+		black_range = self.__get_image_in_range_from_hsv(MaskGenerator.__low_black, MaskGenerator.__high_black)
 		filled_black_contours = self.__get_filled_contours_from_image(black_range)
-		dilated_black_contours = MaskGenerator.dilate_image(filled_black_contours)
+		dilated_black_contours = Helper.dilate_image(filled_black_contours)
 
-		black_contours_mask = MaskGenerator.convert_image_to_mask(dilated_black_contours)
+		black_contours_mask = Helper.convert_image_to_mask(dilated_black_contours)
 		
 		black_contours_mask_reduced = ContourExtractor.reduce_image_contours(black_contours_mask, 75)
 		black_contours_mask_reduced_color = self.__add_color_to_image(black_contours_mask_reduced)
 		
-		(connected_mask, connected_color, contours_img) = ContourExtractor.connect_contours_loop(
-			self.bgr_image, black_contours_mask_reduced, black_contours_mask_reduced_color, dist=30, maxIters=10)
+		contour_connector = ContourConnector(black_contours_mask_reduced)
+		contour_connector.connect_contours_within_distance(30)
+		connected_mask = contour_connector.connected_contours_mask
 
 		black_contours_connected_reduced = ContourExtractor.reduce_image_contours(connected_mask, 1000)
-		black_mask = MaskGenerator.dilate_image(black_contours_connected_reduced)
+		black_mask = Helper.dilate_image(black_contours_connected_reduced)
 
 		return black_mask
 
 	def generate_red_lines_mask(self):
-		red_range = self.__get_image_in_range_from_hsv(MaskGenerator.low_red, MaskGenerator.high_red)
+		red_range = self.__get_image_in_range_from_hsv(MaskGenerator.__low_red, MaskGenerator.__high_red)
 		red_range_color = self.__add_color_to_image(red_range)
-		lines = MaskGenerator.get_horizontal_lines(red_range_color)
+		lines = Helper.get_horizontal_lines(red_range_color)
 		lines_image = self.__get_lines_image(lines)
-		red_lines_mask = MaskGenerator.convert_image_to_mask(lines_image)
+		red_lines_mask = Helper.convert_image_to_mask(lines_image)
 
 		return red_lines_mask
 
@@ -114,10 +128,10 @@ class MaskGenerator:
 
 		return lines_image
 
-	def __combine_masks(self):
-		non_blue_mask = cv2.bitwise_not(self.blue_mask)
-		non_black_mask = cv2.bitwise_not(self.black_mask)
-		non_red_mask = cv2.bitwise_not(self.red_lines_mask)
+	def __generate_topo_mask(self):
+		non_blue_mask = cv2.bitwise_not(self.image_masks.blue_mask)
+		non_black_mask = cv2.bitwise_not(self.image_masks.black_mask)
+		non_red_mask = cv2.bitwise_not(self.image_masks.red_lines_mask)
 
 		temp = cv2.bitwise_and(non_blue_mask, non_black_mask)
 		combined_mask = cv2.bitwise_and(temp, non_red_mask)
@@ -126,33 +140,6 @@ class MaskGenerator:
 
 	def __clear_temp_image(self):
 		self.temp_image = cv2.bitwise_xor(self.temp_image, self.temp_image)
-
-	@staticmethod
-	def convert_image_to_mask(image):
-		mask = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-		
-		return mask
-
-	@staticmethod
-	def convert_image_to_inverted_mask(image):
-		mask = MaskGenerator.convert_image_to_mask(image)
-		inverted_mask = cv2.bitwise_not(mask)
-
-		return inverted_mask
-
-	@staticmethod
-	def dilate_image(image):
-		kernel = np.ones((5,5), np.uint8)
-		dilated_image = cv2.dilate(image, kernel, iterations=1)
-
-		return dilated_image
-
-	@staticmethod
-	def get_horizontal_lines(image):
-		edges = cv2.Canny(image, 50, 115)
-		lines = cv2.HoughLines(edges, 1, np.pi/180, 50)
-
-		return lines
 
 
 

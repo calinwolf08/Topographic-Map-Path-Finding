@@ -290,9 +290,9 @@ def run(name):
 
 	path_finder.get_start_end_image()
 	
-	cropped_img = path_finder.cropped_img.image
+	cropped_img = path_finder.cropped_img.cv_image
 
-	path_finder.cropped_img.extract_contours()
+	path_finder.find_path()
 
 	# final, final_color = extract_contours(cropped_img)
 
