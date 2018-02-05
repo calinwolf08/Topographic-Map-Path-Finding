@@ -120,40 +120,34 @@ class ContourConnector:
 class ContourExtractor:
 	def __init__(self, cropped_image):
 		self.cv_image = cropped_image.cv_image
-		self.cv_image_masks = cropped_image.cv_image_masks
+		self.image_masks = cropped_image.image_masks
 
-		self.extracted_contours = None
+		self.extracted_contours = self.__extract_contours()
 
-	def extract_contours(self):
+	def __extract_contours(self):
 		distances = [10, 20, 30, 40, 50, 60, 70]
 
 		min_contour_area = 50
 		first_prepared_mask = self.__prepare_for_first_contour_connecting()
-		self.__connect_contours_by_distances(first_prepared_mask, distances[:3], min_contour_area)
+		first_connected_mask = self.__connect_contours_by_distances(first_prepared_mask, distances[:3], min_contour_area)
 		
 		min_contour_area = 2
-		second_prepared_mask = self.__prepare_for_second_contour_connecting()
-		self.__connect_contours_by_distances(second_prepared_mask, distances[3:], min_contour_area)
+		second_prepared_mask = self.__prepare_for_second_contour_connecting(first_connected_mask)
+		second_connected_mask = self.__connect_contours_by_distances(second_prepared_mask, distances[3:], min_contour_area)
+
+		return second_connected_mask
 
 	def __prepare_for_first_contour_connecting(self):
 		dilated_image = Helper.dilate_image(self.cv_image)
 		dilated_mask = Helper.convert_image_to_mask(dilated_image)
 		gray_denoised_image = cv2.fastNlMeansDenoising(dilated_mask, None, 5, 7, 21)
 		threshold_image = cv2.threshold(gray_denoised_image,225,255,cv2.THRESH_BINARY_INV)[1]
-		prepared_mask = cv2.bitwise_and(threshold_image, threshold_image, mask=self.cv_image_masks.topo_mask)
-
-		# cv2.imshow("prep", prepared_mask)
-
-		# prepared_image = cv2.bitwise_and(self.cv_image, self.cv_image, mask=prepared_mask)
-		# cv2.imshow("prep2", prepared_image)
-
-		# cv2.waitKey(0)
-		# cv2.destroyAllWindows()
+		prepared_mask = cv2.bitwise_and(threshold_image, threshold_image, mask=self.image_masks.topo_mask)
 
 		return prepared_mask
 
-	def __prepare_for_second_contour_connecting(self):
-		skeleton_mask = self.__skeletonize_mask(self.extracted_contours)
+	def __prepare_for_second_contour_connecting(self, mask):
+		skeleton_mask = self.__skeletonize_mask(mask)
 		reduced_mask = self.reduce_image_contours(skeleton_mask, 1)
 		dilated_mask = Helper.dilate_image(reduced_mask)
 		# dilated_color = cv2.bitwise_and(self.cv_image, self.cv_image, mask=dilated_mask)
@@ -167,7 +161,7 @@ class ContourExtractor:
 			contour_connector.connect_contours_within_distance(distance)
 			self.reduce_image_contours(contour_connector.connected_contours_mask, min_contour_area)
 
-		self.extracted_contours = contour_connector.connected_contours_mask
+		return contour_connector.connected_contours_mask
 
 	def __skeletonize_mask(self, img):
 		size = np.size(img)

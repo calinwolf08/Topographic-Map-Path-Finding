@@ -8,25 +8,30 @@ class CroppedImage:
 
 	def __init__(self, cv_image):
 		self.cv_image = cv_image
-		self.cv_image_masks = None
+		# self.image_masks = MaskGenerator(self.cv_image).image_masks
+		# self.contours = ContourExtractor(self).extracted_contours
+		self._image_masks = None
 		self.contours = None
 		self.contours_color = None
 
-	def get_contours(self):
-		if self.contours == None:
-			self.__get_image_masks()
-			self.__extract_contours()
+	@property
+	def image_masks(self):
+		if self._image_masks is None:
+			self._image_masks = MaskGenerator(self.cv_image).image_masks
 
-		return self.contours
+		return self._image_masks
 
-	def __get_image_masks(self):
-		if self.cv_image_masks == None:
-			self.cv_image_masks = MaskGenerator(self.cv_image).get_image_masks()
+	@image_masks.setter
+	def image_masks(self, value):
+		self._image_masks = value
 
-		return self.cv_image_masks
+	@property
+	def contours(self):
+		if self._contours is None:
+			self._contours = ContourExtractor(self).extracted_contours
 
-	def __extract_contours(self):
-		extractor = ContourExtractor(self)
-		extractor.extract_contours()
+		return self._contours
 
-		self.contours = extractor.extracted_contours
+	@contours.setter
+	def contours(self, value):
+		self._contours = value

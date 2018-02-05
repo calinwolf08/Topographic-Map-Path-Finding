@@ -15,10 +15,9 @@ class TopographicMap:
 	def __init__(self, filename):
 		self.filename = filename
 		self.image = cv2.imread(filename, 1)
-		self.__set_countour_interval_dist()
+		self.countour_interval_dist = self.__get_countour_interval_dist()
 
-	# find a number, x, in the image in the context: "CONTOUR INTERVAL x FEET" 
-	def __set_countour_interval_dist(self):
+	def __get_countour_interval_dist(self):
 		results = self.__detect_numbers()
 		word_list = results.split()
 
@@ -27,9 +26,8 @@ class TopographicMap:
 		for word, offset in self.__words_offsets:
 			candidates += self.__find_candidates_for_id_and_index(word_list, word, offset)
 
-		self.countour_interval_dist = candidates[0][1]
+		return candidates[0][1]
 
-	# look for candidate values by searching for id_word and getting the word at the offset
 	def __find_candidates_for_id_and_index(self, word_list, id_word, offset):
 		candidates = []
 
@@ -42,7 +40,7 @@ class TopographicMap:
 
 		return candidates
 
-	# use pytesseract, find all words in image
+	# uses pytesseract
 	def __detect_numbers(self):
 		rows, cols, chan = self.image.shape
 

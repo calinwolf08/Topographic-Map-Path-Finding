@@ -28,3 +28,14 @@ class Helper:
 		lines = cv2.HoughLines(edges, 1, np.pi/180, 50)
 
 		return lines
+
+	@staticmethod
+	def show_images_and_wait(images):
+		x = 1
+
+		for image in images:
+			cv2.imshow(str(x), image)
+			x += 1
+			
+		cv2.waitKey(0)
+		cv2.destroyAllWindows()

@@ -286,13 +286,22 @@ def draw_path(img, node, dim):
 
 def run(name):
 	topo_map = TopographicMap(name)
-	path_finder = PathFinder(topo_map)
-
-	path_finder.get_start_end_image()
+	path_finder = PathFinder(topo_map, 100)
 	
-	cropped_img = path_finder.cropped_img.cv_image
+	cropped_img = path_finder.cropped_img
 
-	path_finder.find_path()
+	cv2.imshow('cropped_img', cropped_img.cv_image)
+	cropped_img.image_masks.show_masks()
+	cv2.imshow('contours', cropped_img.contours)
+
+
+	# path_node = path_finder.calculate_path()
+	# path = path_finder.draw_path(cropped_img.cv_image, path_node)
+
+	# if path is None:
+	# 	print("no path found")
+
+	# cv2.imshow('path', path)
 
 	# final, final_color = extract_contours(cropped_img)
 
