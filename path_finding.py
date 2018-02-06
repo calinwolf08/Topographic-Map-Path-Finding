@@ -298,26 +298,27 @@ class PathFinder:
 		self._grid = value
 
 	def __get_start_end_image(self, padding = 20, resize_factor = 6):
-		# self.__get_start_end_points()
+		self.__get_start_end_points()
 
-		# # get max of width and height of points
-		# dist = max(abs(self.start.x - self.end.x), abs(self.start.y - self.end.y))
+		# get max of width and height of points
+		dist = max(abs(self.start.x - self.end.x), abs(self.start.y - self.end.y))
 
-		# # calculate padding needed for each point  
-		# yPad = int((dist - abs(self.start.y - self.end.y)) / 2) + padding
-		# xPad = int((dist - abs(self.start.x - self.end.x)) / 2) + padding 
+		# calculate padding needed for each point  
+		yPad = int((dist - abs(self.start.y - self.end.y)) / 2) + padding
+		xPad = int((dist - abs(self.start.x - self.end.x)) / 2) + padding 
 
-		# # crop image around start and end points with padding
-		# minY = min(self.start.y, self.end.y) - yPad
-		# maxY = max(self.start.y, self.end.y) + yPad
+		# crop image around start and end points with padding
+		minY = min(self.start.y, self.end.y) - yPad
+		maxY = max(self.start.y, self.end.y) + yPad
 
-		# minX = min(self.start.x, self.end.x) - xPad
-		# maxX = max(self.start.x, self.end.x) + xPad
+		minX = min(self.start.x, self.end.x) - xPad
+		maxX = max(self.start.x, self.end.x) + xPad
 
-		minX = 324		
-		maxX = 576
-		minY = 303
-		maxY = 555
+		# minX = 334
+		# maxX = 488
+		# minY = 279
+		# maxY = 433
+
 		img = self.topo_map.image[minY : maxY, minX : maxX]
 
 		# calculate start/end points for cropped image
@@ -367,13 +368,13 @@ class PathFinder:
 	def __click_image(self, event, x, y, flags, param):
 		if event == 1:
 			if self.start.x < 0:
+				cv2.circle(self.temp_img, (x,y), 5, (0,255,0), 2)
 				self.start.x = x
 				self.start.y = y
-				cv2.circle(self.temp_img, (x,y), 5, (0,255,0), 2)
 			elif self.end.x < 0:
+				cv2.circle(self.temp_img, (x,y), 5, (0,0,255), 2)
 				self.end.x = x
 				self.end.y = y
-				cv2.circle(self.temp_img, (x,y), 5, (0,0,255), 2)
 
 	def calculate_path(self):
 		if self._cropped_img is None:
@@ -395,7 +396,7 @@ class PathFinder:
 			parent = node.parent
 			to_point = self._grid.convert_grid_to_pixel_point(parent.coord)
 
-			cv2.line(path_img,(from_point.x, from_point.y),(to_point.x, to_point.y),(0,255,255),2)
+			cv2.line(path_img,(from_point.x, from_point.y),(to_point.x, to_point.y),(0,0,255),2)
 
 			node = parent
 			from_point = to_point

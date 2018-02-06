@@ -286,54 +286,27 @@ def draw_path(img, node, dim):
 
 def run(name):
 	topo_map = TopographicMap(name)
-	path_finder = PathFinder(topo_map, 100)
+	print(topo_map.image_data.mile_in_pixels)
+	print(topo_map.image_data.contour_interval_dist)
+	cv2.imshow("sub_image", topo_map.image_data.sub_image)
+	# path_finder = PathFinder(topo_map, 50)
 	
-	cropped_img = path_finder.cropped_img
+	# cropped_img = path_finder.cropped_img
 
-	cv2.imshow('cropped_img', cropped_img.cv_image)
-	cropped_img.image_masks.show_masks()
-	cv2.imshow('contours', cropped_img.contours)
-
+	# # cropped_img.image_masks.show_masks()
+	# cv2.imshow('cropped_img', cropped_img.cv_image)
+	# cv2.imshow('contours', cropped_img.contours)
 
 	# path_node = path_finder.calculate_path()
 	# path = path_finder.draw_path(cropped_img.cv_image, path_node)
+	# temp = cv2.cvtColor(cropped_img.contours, cv2.COLOR_GRAY2BGR)
+	# path2 = path_finder.draw_path(temp, path_node)
 
 	# if path is None:
 	# 	print("no path found")
 
 	# cv2.imshow('path', path)
-
-	# final, final_color = extract_contours(cropped_img)
-
-	# # final = cv2.cvtColor(final, cv2.COLOR_GRAY2BGR)
-	# # cv2.circle(final, (startX,startY), 5, (0,255,0), 2)
-	# # cv2.circle(final, (endX,endY), 5, (0,0,255), 2)
-
-	# cv2.imshow('final_color', final_color)
-	# cv2.imshow('final', final)
-
-	# grid_dim = 100
-
-	# grid_img = add_grid(final_color, grid_dim = grid_dim, lineThickness = 1)
-	# cv2.imshow("grid_img", grid_img)
-
-	# grid = create_grid(final, grid_dim = grid_dim)
-
-	# final_bgr = cv2.cvtColor(final, cv2.COLOR_GRAY2BGR)
-	# density_img = show_density(grid, final_bgr, grid_dim = grid_dim)
-
-	# cv2.imshow("density_img", density_img)
-	
-	# rows, cols, chan = cropped_img.shape
-	# (sx, sy) = convert_coord_to_grid(path_finder.startX, path_finder.startY, int(rows / grid_dim))
-	# (ex, ey) = convert_coord_to_grid(path_finder.endX, path_finder.endY, int(rows / grid_dim))
-
-	# node = find_path(grid, grid_dim, sx, sy, ex, ey)
-	
-	# path_img = draw_path(grid_img, node, int(rows / grid_dim))
-	# path_img2 = draw_path(cropped_img, node, int(rows / grid_dim))
-	# cv2.imshow("path_img", path_img)
-	# cv2.imshow("path_img2", path_img2)
+	# cv2.imshow('path2', path2)
 
 	print("done")
 	cv2.waitKey(0)
@@ -344,27 +317,6 @@ if __name__ == '__main__':
 	run("SanLuisObispo.jpg")
 	# run("Snoqualmie.jpg")
 
-# prepare image itself
-	# image class ????
-
-# get contour interval from image
-	# could be in image class
-# get start end points from user
-
-# create grid image
-	# optional ?? just visual ??
-
-# create grid
-	# grid class 
-
-# create density image
-	# optional ?? just visual ??
-
-# convert coords to grid coords
-
-# find path
-
-# draw path
 
 	
 

@@ -8,10 +8,8 @@ class CroppedImage:
 
 	def __init__(self, cv_image):
 		self.cv_image = cv_image
-		# self.image_masks = MaskGenerator(self.cv_image).image_masks
-		# self.contours = ContourExtractor(self).extracted_contours
 		self._image_masks = None
-		self.contours = None
+		self._contours = None
 		self.contours_color = None
 
 	@property

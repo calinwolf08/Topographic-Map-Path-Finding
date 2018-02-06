@@ -10,6 +10,7 @@ class ImageMasks:
 		self.blue_mask = None
 		self.black_mask = None
 		self.red_mask = None
+		self.green_mask = None
 
 	def is_generated(self):
 		is_generated = True
@@ -24,19 +25,20 @@ class ImageMasks:
 		cv2.imshow('blue_mask', self.blue_mask)
 		cv2.imshow('black_mask', self.black_mask)
 		cv2.imshow('red_mask', self.red_mask)
+		cv2.imshow('green_mask', self.green_mask)
 
 class MaskGenerator:
-	__low_blue = np.array([50, 35, 100])
-	__high_blue = np.array([100, 150, 255])
+	low_blue = np.array([50, 35, 100])
+	high_blue = np.array([100, 150, 255])
 
-	__low_black = np.array([0, 0, 0])
-	__high_black = np.array([100, 100, 150])
+	low_black = np.array([0, 0, 0])
+	high_black = np.array([100, 100, 150])
 
-	# __low_red = np.array([0, 50, 200])
-	# __high_red = np.array([10, 255, 255])
+	low_red = np.array([0, 75, 210])
+	high_red = np.array([10, 255, 255])
 
-	__low_red = np.array([0, 75, 210])
-	__high_red = np.array([10, 255, 255])
+	low_green = np.array([20, 35, 100])
+	high_green = np.array([50, 150, 255])
 
 	def __init__(self, cv_image):
 		self.bgr_image = cv_image
@@ -50,28 +52,37 @@ class MaskGenerator:
 		image_masks.blue_mask = self.__generate_blue_mask()
 		image_masks.black_mask = self.__generate_black_mask()
 		image_masks.red_mask = self.__generate_red_mask()
+		image_masks.green_mask = self.__generate_green_mask()
 		image_masks.topo_mask = self.__generate_topo_mask(image_masks)
 
 		return image_masks
 
 	def __generate_blue_mask(self):
-		blue_range = self.__get_image_in_range_from_hsv(MaskGenerator.__low_blue, MaskGenerator.__high_blue)
+		blue_range = self.__get_image_in_range_from_hsv(MaskGenerator.low_blue, MaskGenerator.high_blue)
 		filled_blue_contours = self.__get_filled_contours_from_image(blue_range)
 		blue_mask = Helper.convert_image_to_mask(filled_blue_contours)
 		
 		return blue_mask
 
 	def __generate_black_mask(self):
-		black_mask = self.__generate_general_color_mask(MaskGenerator.__low_black, MaskGenerator.__high_black)
+		black_mask = self.__generate_general_color_lines_mask(MaskGenerator.low_black, MaskGenerator.high_black)
 
 		return black_mask
 
 	def __generate_red_mask(self):
-		red_mask = self.__generate_general_color_mask(MaskGenerator.__low_red, MaskGenerator.__high_red)
+		red_mask = self.__generate_general_color_lines_mask(MaskGenerator.low_red, MaskGenerator.high_red)
 
 		return red_mask
 
-	def __generate_general_color_mask(self, low_range, high_range):
+	def __generate_green_mask(self):
+		green_range = self.__get_image_in_range_from_hsv(MaskGenerator.low_green, MaskGenerator.high_green)
+		filled_green_contours = self.__get_filled_contours_from_image(green_range)
+		green_mask = Helper.convert_image_to_mask(filled_green_contours)
+		green_mask_reduced = Helper.reduce_image_contours(green_mask, 200)
+
+		return green_mask_reduced
+
+	def __generate_general_color_lines_mask(self, low_range, high_range):
 		color_range = self.__get_image_in_range_from_hsv(low_range, high_range)
 
 		filled_contours = self.__get_filled_contours_from_image(color_range)
@@ -79,14 +90,14 @@ class MaskGenerator:
 
 		contours_mask = Helper.convert_image_to_mask(dilated_contours)
 		
-		contours_mask_reduced = ContourExtractor.reduce_image_contours(contours_mask, 75)
+		contours_mask_reduced = Helper.reduce_image_contours(contours_mask, 75)
 		contours_mask_reduced_color = self.__add_color_to_image(contours_mask_reduced)
 		
 		contour_connector = ContourConnector(contours_mask_reduced)
 		contour_connector.connect_contours_within_distance(30)
 		connected_mask = contour_connector.connected_contours_mask
 
-		contours_connected_reduced = ContourExtractor.reduce_image_contours(connected_mask, 1000)
+		contours_connected_reduced = Helper.reduce_image_contours(connected_mask, 1000)
 		mask = Helper.dilate_image(contours_connected_reduced)
 
 		return mask

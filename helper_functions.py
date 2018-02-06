@@ -36,6 +36,17 @@ class Helper:
 		for image in images:
 			cv2.imshow(str(x), image)
 			x += 1
-			
+
 		cv2.waitKey(0)
 		cv2.destroyAllWindows()
+
+	@staticmethod
+	def reduce_image_contours(mask, minArea):
+		img, contours, hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+		
+		contours = list(filter(lambda c: cv2.contourArea(c) > minArea, contours))
+		
+		reduced = cv2.bitwise_xor(mask, mask)
+		cv2.drawContours(reduced, contours, -1, (255,255,255), cv2.FILLED)
+		
+		return reduced

@@ -148,7 +148,7 @@ class ContourExtractor:
 
 	def __prepare_for_second_contour_connecting(self, mask):
 		skeleton_mask = self.__skeletonize_mask(mask)
-		reduced_mask = self.reduce_image_contours(skeleton_mask, 1)
+		reduced_mask = Helper.reduce_image_contours(skeleton_mask, 1)
 		dilated_mask = Helper.dilate_image(reduced_mask)
 		# dilated_color = cv2.bitwise_and(self.cv_image, self.cv_image, mask=dilated_mask)
 
@@ -159,7 +159,7 @@ class ContourExtractor:
 
 		for distance in distances:
 			contour_connector.connect_contours_within_distance(distance)
-			self.reduce_image_contours(contour_connector.connected_contours_mask, min_contour_area)
+			Helper.reduce_image_contours(contour_connector.connected_contours_mask, min_contour_area)
 
 		return contour_connector.connected_contours_mask
 
@@ -181,17 +181,6 @@ class ContourExtractor:
 		        done = True
 
 		return skel
-
-	@staticmethod
-	def reduce_image_contours(mask, minArea):
-		img2, contours, hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-		
-		contours = list(filter(lambda c: cv2.contourArea(c) > minArea, contours))
-		
-		reduced = cv2.bitwise_xor(mask, mask)
-		cv2.drawContours(reduced, contours, -1, (255,255,255), cv2.FILLED)
-		
-		return reduced
 
 ###################
 	# def connect_contours_loop(self, connected_mask, connected_color, dist, maxIters, 
