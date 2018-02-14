@@ -1,6 +1,11 @@
 import cv2
 import numpy as np
 
+class Point:
+	def __init__(self, x, y):
+		self.x = x
+		self.y = y
+
 class Helper:
 	@staticmethod
 	def convert_image_to_mask(image):

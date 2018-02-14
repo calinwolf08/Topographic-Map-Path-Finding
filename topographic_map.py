@@ -7,12 +7,12 @@ import numpy as np
 from helper_functions import Helper
 
 class ImageData:
-		# multipliers to get portion of image with interval value
+	# multipliers to get portion of image with interval value
 	__bottom_thresh = 0.9
 	__left_thresh = 0.35
 	__right_thresh = 0.65
 
-	# words, offset to interval value
+	# (words, offset) to contour interval value
 	__words_offsets = [("CONTOUR", 2), ("INTERVAL", 1), ("FEET", -1)]
 	__resize_factor = 6
 
@@ -20,9 +20,13 @@ class ImageData:
 		self.image = image
 
 		self.sub_image = self.__get_sub_image()
-		self.word_list = self.__get_words()
+		
+		word_list, box_list = self.__get_words()
+		self.word_list = word_list
+		self.box_list = box_list
+		
 		self._contour_interval_dist = None
-		self._mile_in_pixels = None
+		self._feet_per_pixel = None
 
 	def __get_sub_image(self):
 		rows, cols, chan = self.image.shape
@@ -49,48 +53,52 @@ class ImageData:
 
 		return candidates[0][1] if len(candidates) > 0 else None 
 
-	def __get_miles_in_pixels(self):
-		print(self.word_list)
+	def __get_feet_per_pixel(self):
+		# row_size = 6
+		# total = int(len(self.box_list) / 6)
+		# idx = 0
 
-		# gray = cv2.cvtColor(self.sub_image, cv2.COLOR_BGR2GRAY)
-		edges = cv2.Canny(self.sub_image, 50, 115)
-		lines = cv2.HoughLines(edges, 1, np.pi/180, 50)
+		# nums = [(idx, int(char)) for idx, char in enumerate(self.box_list) 
+		# if idx % row_size == 0 and char.isdigit() and int(char) > 2 and int(char) < 10]
 
-		img = self.sub_image.copy()
+		# nums.sort(key=lambda val: self.box_list[val[0] + 2])
 
-		for r,theta in lines[0]:
-			# Stores the value of cos(theta) in a
-			a = np.cos(theta)
+		# threshold = 3
+		# prev_x = -1
+		# prev_y = -2 * threshold
+		# prev_num = -1
 
-			# Stores the value of sin(theta) in b
-			b = np.sin(theta)
-			 
-			# x0 stores the value rcos(theta)
-			x0 = a*r
-			 
-			# y0 stores the value rsin(theta)
-			y0 = b*r
-			 
-			# x1 stores the rounded off value of (rcos(theta)-1000sin(theta))
-			x1 = int(x0 + 1000*(-b))
-			 
-			# y1 stores the rounded off value of (rsin(theta)+1000cos(theta))
-			y1 = int(y0 + 1000*(a))
+		# img = self.sub_image.copy()
 
-			# x2 stores the rounded off value of (rcos(theta)+1000sin(theta))
-			x2 = int(x0 - 1000*(-b))
-			 
-			# y2 stores the rounded off value of (rsin(theta)-1000cos(theta))
-			y2 = int(y0 - 1000*(a))
-			 
-			# cv2.line draws a line in img from the point(x1,y1) to (x2,y2).
-			# (0,0,255) denotes the colour of the line to be 
-			#drawn. In this case, it is red. 
-			cv2.line(img,(x1,y1), (x2,y2), (0,0,255),2)
+		# lsd = cv2.createLineSegmentDetector(0)
+		# lines = lsd.detect(img)[0] 
+		# drawn_img = lsd.drawSegments(img,lines)
+		# cv2.imshow("LSD",drawn_img )
+		
+		# # h, w, _ = img.shape
 
-		# cv2.imshow("lines", img)
+		# # for (idx, num) in nums:
+		# # 	cur_x = int(self.box_list[idx + 1])
+		# # 	cur_y = int(self.box_list[idx + 2])
+		# # 	cur_x2 = int(self.box_list[idx + 3])
+		# # 	cur_y2 = int(self.box_list[idx + 4])
 
-		return -1
+		# # 	print(str(num) + ": " + str(cur_x) + ", " + str(cur_y) + " :: " + str(cur_x2) + ", " + str(cur_y2))
+		# # 	img = cv2.rectangle(img,(cur_x,h-cur_y),(cur_x2,h-cur_y2),(255,0,0),2)
+		# # 	# if abs(cur_y - prev_y) < threshold:
+		# # 	# 	dist = abs(cur_x - cur_y)
+		# # 	# 	diff = abs(num - prev_num)
+		# # 	# 	print("possibility found ^\n--------")
+
+		# # 	# prev_x = cur_x
+		# # 	# prev_y = cur_y
+		# # 	# prev_num = num
+		# img = cv2.resize(img, None, fx=1/6, fy=1/6, 
+		# 	interpolation = cv2.INTER_LINEAR)
+		# cv2.imshow("blah", img)
+		# print(nums)
+
+		return int(1650 / 5280)# hardcoded estimatem, pixel per mile / ft per mile
 
 	def __find_candidates_for_id_and_index(self, word_list, id_word, offset):
 		candidates = []
@@ -108,20 +116,15 @@ class ImageData:
 		filename = "{}.png".format(os.getpid())
 		cv2.imwrite(filename, self.sub_image)
 
-		results = pytesseract.image_to_string(Image.open(filename))
+		words = pytesseract.image_to_string(Image.open(filename))
 
-		from pprint import pprint
-		results2 = pytesseract.image_to_string(Image.open(filename), boxes=True, config="hocr")
-
-		pprint(results)
-		print("----------------------------")
-
-		pprint(results2)
+		boxes = pytesseract.image_to_string(Image.open(filename), boxes=True, config="hocr")
 
 		os.remove(filename)
-		results_list = results.split()
+		word_list = words.split()
+		box_list = boxes.split()
 
-		return results_list
+		return word_list, box_list
 
 	@property
 	def contour_interval_dist(self):
@@ -135,15 +138,15 @@ class ImageData:
 		self._contour_interval_dist = value
 
 	@property
-	def mile_in_pixels(self):
-		if self._mile_in_pixels is None:
-			self._mile_in_pixels = self.__get_miles_in_pixels()
+	def feet_per_pixel(self):
+		if self._feet_per_pixel is None:
+			self._feet_per_pixel = self.__get_feet_per_pixel()
 
-		return self._mile_in_pixels
+		return self._feet_per_pixel
 
-	@mile_in_pixels.setter
-	def mile_in_pixels(self, value):
-		self._mile_in_pixels = value
+	@feet_per_pixel.setter
+	def feet_per_pixel(self, value):
+		self._feet_per_pixel = value
 
 class TopographicMap:
 	def __init__(self, filename):
