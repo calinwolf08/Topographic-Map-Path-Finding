@@ -23,7 +23,11 @@ class Grid:
 		self.__initialize_array()
 
 	def get_cell(self, point):
-		return self.array[point.x][point.y]
+		if point.x >= 0 and point.x < len(self.array):
+			if point.y >= 00 and point.y < len(self.array[point.x]):
+				return self.array[point.x][point.y]		
+
+		return None
 
 	def convert_pixel_to_grid_point(self, point):
 		x = int(point.x / self.cell_width)
@@ -93,7 +97,7 @@ class Grid:
 
 				cell = self.get_cell(Point(c,r))
 
-				if cell.density > 0:
+				if cell.density > 0.1:
 					cv2.circle(copy, (x,y), int(self.cell_width/2), (0,255,0), 2)
 
 		return copy
@@ -135,7 +139,7 @@ class UserSettings:
 		if self.avoid_water is None or self.max_angle is None or self.cell_width is None:
 			self.avoid_water = True
 			self.max_angle = 45
-			self.cell_width = 10
+			self.cell_width = 50
 
 	def find_start_end_points(self):
 		self.temp_img = self.topo_map.image.copy()
@@ -162,7 +166,7 @@ class UserSettings:
 	def get_contour_interval_dist(self):
 		return self.topo_map.image_data.contour_interval_dist
 
-	def __find_cropped_image(self, padding = 20):
+	def __find_cropped_image(self, padding = 50):
 		# get max of width and height of points
 		dist = max(abs(self.start.x - self.end.x), abs(self.start.y - self.end.y))
 
@@ -254,6 +258,8 @@ class PathFinder:
 		open_nodes = [Node(start_point)]
 		closed_nodes = []
 
+		count = 0
+
 		print("start: " + str(start_point.x) + ", " + str(start_point.y))
 		print("end: " + str(end_point.x) + ", " + str(end_point.y))
 
@@ -274,9 +280,16 @@ class PathFinder:
 
 			closed_nodes.append(cur_node)
 
+			count += 1
+
+			if count % 100 == 0:
+				print("open nodes: " + str(len(open_nodes)))
+				print("closed nodes: " + str(len(closed_nodes)))
+				print("---------")
+
 		return None
 
-	def __generate_successor_nodes(self, cur_node):
+	def __generate_successor_nodes_original(self, cur_node):
 		point = cur_node.coord
 		successors = []
 
@@ -336,6 +349,31 @@ class PathFinder:
 
 		return successors
 
+	def __generate_successor_nodes(self, cur_node):
+		# variable names indicate top, middle, bottom -> left, middle, right -> (optional) left, middle, right, top, bottom
+		# ie: the locations around cur_node upto to cells away, roughly every 22 degrees
+
+		tl = self.__get_nearest_contour_node(cur_node, Point(-1, -1))
+		tlr = self.__get_nearest_contour_node(cur_node, Point(-1, -2))
+		tm = self.__get_nearest_contour_node(cur_node, Point(0, -1))
+		tr = self.__get_nearest_contour_node(cur_node, Point(1, -1))
+		trl = self.__get_nearest_contour_node(cur_node, Point(1, -2))
+		
+		ml = self.__get_nearest_contour_node(cur_node, Point(-1, 0))
+		mlt = self.__get_nearest_contour_node(cur_node, Point(-2, -1))
+		mlb = self.__get_nearest_contour_node(cur_node, Point(-2, 1))
+		mr = self.__get_nearest_contour_node(cur_node, Point(1, 0))
+		mrt = self.__get_nearest_contour_node(cur_node, Point(2, -1))
+		mrb = self.__get_nearest_contour_node(cur_node, Point(2, 1))
+		
+		bl = self.__get_nearest_contour_node(cur_node, Point(-1, 1))
+		blr = self.__get_nearest_contour_node(cur_node, Point(-1, 2))
+		bm = self.__get_nearest_contour_node(cur_node, Point(0, 1))
+		br = self.__get_nearest_contour_node(cur_node, Point(1, 1))
+		brl = self.__get_nearest_contour_node(cur_node, Point(1, 2))
+
+		return list(filter(lambda x: x is not None, [tl, tlr, tm, tr, trl, ml, mlt, mlb, mr, mrt, mrb, bl, blr, bm, br, brl]))
+
 	def __are_equal_points(self, p1, p2):
 		return p1.x == p2.x and p1.y == p2.y
 
@@ -355,17 +393,35 @@ class PathFinder:
 
 		return False
 
-	def __remove_invalid_nodes(self, successors):
-		if self.user_settings.avoid_water:
-			successors = list(filter(lambda x: self.grid.get_cell(x.coord).water_density == 0, successors))
+	def __get_nearest_contour_node(self, cur_node, direction):
+		cur_point = self.__get_next_point(cur_node.coord, direction)
+		nearest_node = None
 
-		return successors
+		count = 0
+
+		while nearest_node is None:
+			if self.__is_point_valid(cur_point):
+				cur_cell = self.grid.get_cell(cur_point)
+
+				if cur_cell.density > 0:
+					nearest_node = Node(cur_point, parent=cur_node)
+				else:
+					cur_point = self.__get_next_point(cur_point, direction)
+			else:
+				break
+
+			# count += 1
+			# print("===" + str(count))
+			# print(str(cur_point) + "===")
+
+		return nearest_node
 
 	def __get_cost_between_nodes(self, start_node, end_node):
 		angle_cost = self.__get_angle_cost(start_node, end_node)
 		terrain_cost = self.__get_terrain_cost(end_node)
+		distance = self.__get_grid_distance_between_points(start_node.coord, end_node.coord)
 
-		return angle_cost + terrain_cost
+		return angle_cost + terrain_cost + distance
 
 	def __get_grid_distance_between_points(self, start, end):
 		dx = abs(start.x - end.x)
@@ -377,6 +433,37 @@ class PathFinder:
 		distance = diag_cost + straight_cost
 
 		return distance
+
+	def __get_next_point(self, cur_point, direction):
+		if abs(direction.x) > 1:
+			temp_point = Point(cur_point.x + int(direction.x/2), cur_point.y + direction.y)
+			temp_point2 = Point(cur_point.x + int(direction.x/2), cur_point.y + int(direction.y/2))
+
+			if not self.__is_point_valid(temp_point) or not self.__is_point_valid(temp_point2):
+				return None
+
+		if abs(direction.y) > 1:
+			temp_point = Point(cur_point.x + int(direction.x/2), cur_point.y + int(direction.y/2))
+			temp_point2 = Point(cur_point.x + direction.x, cur_point.y + int(direction.y/2))
+
+			if not self.__is_point_valid(temp_point) or not self.__is_point_valid(temp_point2):
+				return None
+
+		next_point = Point(cur_point.x + direction.x, cur_point.y + direction.y)
+
+		return next_point
+
+	def __is_point_valid(self, point):
+		if point is None:
+			return False
+
+		if not self.__is_point_in_grid(point):
+			return False
+
+		if self.user_settings.avoid_water and self.grid.get_cell(point).water_density != 0:
+			return False
+
+		return True
 
 	def __get_angle_cost(self, start_node, end_node):
 		angle = self.__get_angle_between_nodes(start_node, end_node)
@@ -399,7 +486,7 @@ class PathFinder:
 	def __get_angle_between_nodes(self, start_node, end_node):
 		direction = Point(end_node.coord.x - start_node.coord.x, end_node.coord.y - start_node.coord.y)
 		
-		nearest_density_point = self.__get_nearest_contour_point(end_node.coord, direction)
+		nearest_density_point = end_node.coord#self.__get_nearest_contour_point(end_node.coord, direction)
 
 		start = self.grid.convert_grid_to_pixel_point(start_node.coord)
 		end = self.grid.convert_grid_to_pixel_point(nearest_density_point)
