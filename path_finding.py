@@ -86,7 +86,6 @@ class Grid:
 
 	def add_density_to_image(self, img):
 		copy = img.copy()
-		rows, cols, chan = copy.shape
 
 		for c in range(self.grid_resolution):
 			for r in range(self.grid_resolution):
@@ -108,88 +107,6 @@ class Node:
 		self.h = h
 		self.parent = parent
 
-class CostCalculator:
-	max_angle = 90
-	max_cost = 1000
-
-	def __init__(self, user_settings):
-		self.user_settings = user_settings
-		self.grid = None
-
-	def calculate_cost(self, start_node, end_node, grid):
-		self.grid = grid
-
-		if self.user_settings.avoid_water:
-			return self.avoid_water(start_node, end_node)
-		else:
-			return 0
-
-	def avoid_water(self, start_node, end_node):
-		angle_cost = self.__get_angle_cost(start_node, end_node)
-		terrain_cost = self.__get_terrain_cost(end_node)
-
-		return angle_cost + terrain_cost
-
-	def __get_angle_cost(self, start_node, end_node):
-		angle = self.__get_angle_between_nodes(start_node, end_node)
-		
-		if angle <= self.user_settings.max_angle:
-			angle_cost = (angle / CostCalculator.max_angle) * 1
-		else:
-			angle_cost = CostCalculator.max_cost
-
-		return angle_cost
-
-	def __get_terrain_cost(self, node):
-		cell = self.grid.get_cell(node.coord)
-		return 0
-
-	def __get_angle_between_nodes(self, start_node, end_node):
-		direction = Point(end_node.coord.x - start_node.coord.x, end_node.coord.y - start_node.coord.y)
-		
-		nearest_density_point = self.__get_nearest_contour_point(end_node.coord, direction)
-
-		start = self.grid.convert_grid_to_pixel_point(start_node.coord)
-		end = self.grid.convert_grid_to_pixel_point(nearest_density_point)
-
-		pixel_dist_to_density = self.__get_pixel_distance_between_points(start, end)
-		feet_dist_to_density = pixel_dist_to_density / self.user_settings.get_feet_per_pixel()
-		feet_dist_to_density = min(feet_dist_to_density, self.user_settings.get_contour_interval_dist())
-
-		# print(pixel_dist_to_density)
-		# print(feet_dist_to_density)
-		# print(self.user_settings.get_contour_interval_dist())
-
-		theta = math.acos(feet_dist_to_density / self.user_settings.get_contour_interval_dist())
-
-		return math.degrees(theta)
-
-	def __get_nearest_contour_point(self, cur_point, direction):
-		cur_cell = self.grid.get_cell(cur_point)
-
-		while cur_cell.density == 0: 
-			next_point = Point(cur_point.x + direction.x, cur_point.y + direction.y)
-
-			if self.__is_point_in_grid(next_point):
-				cur_point = next_point
-				cur_cell = self.grid.get_cell(cur_point)
-			else:
-				break
-
-		return cur_point
-
-	def __get_pixel_distance_between_points(self, start, end):
-		resized_distance = math.sqrt(math.pow(start.x-end.x, 2) + math.pow(start.y-end.y, 2))
-		actual_distance = resized_distance / UserSettings.resize_factor
-
-		return actual_distance
-
-	def __is_point_in_grid(self, point):
-		if point.x >= 0 and point.x < self.grid.grid_resolution and point.y >= 0 and point.y < self.grid.grid_resolution:
-			return True
-
-		return False
-
 class UserSettings:
 	resize_factor = 6
 
@@ -203,8 +120,6 @@ class UserSettings:
 		self.avoid_water = None
 		self.max_angle = None
 		self.grid_resolution = None
-
-		self.cost_calculator = None
 
 	@classmethod
 	def initialized_from_filename(cls, filename):
@@ -221,10 +136,7 @@ class UserSettings:
 		if self.avoid_water is None or self.max_angle is None or self.grid_resolution is None:
 			self.avoid_water = True
 			self.max_angle = 45
-			self.grid_resolution = 50
-
-		if self.cost_calculator is None:
-			self.cost_calculator = CostCalculator(self)
+			self.grid_resolution = 100
 
 	def find_start_end_points(self):
 		self.temp_img = self.topo_map.image.copy()
@@ -308,17 +220,22 @@ class UserSettings:
 class PathFinder:
 	step_cost = 1
 	diag_step_cost = math.sqrt(2)
+	max_angle = 90
+	max_cost = 1000
 
 	def __init__(self, user_settings):
 		self.user_settings = user_settings
 		self.grid = Grid(user_settings.cropped_img, user_settings.grid_resolution)
-		self.cost_calculator = user_settings.cost_calculator
 
 	@classmethod
 	def run_from_user_settings(cls, user_settings):
 		path_finder = cls(user_settings)
 		path = path_finder.find_path()
-		path_img = path_finder.draw_path(path)
+
+		if path is not None:
+			path_img = path_finder.draw_path(path)
+		else:
+			path_img = None
 
 		return path, path_img
 
@@ -335,13 +252,6 @@ class PathFinder:
 		return self.__calculate_path(grid_start, grid_end)
 
 	def __calculate_path(self, start_point, end_point):
-		image = cv2.cvtColor(self.user_settings.cropped_img.contours, cv2.COLOR_GRAY2BGR)
-		grid_img = self.grid.add_grid_to_image(image, 2)
-		density_img = self.grid.add_density_to_image(grid_img)
-
-		cv2.imshow("grid", grid_img)
-		cv2.imshow("density", density_img)
-
 		open_nodes = [Node(start_point)]
 		closed_nodes = []
 
@@ -423,20 +333,21 @@ class PathFinder:
 			mt = Node(Point(point.x, y), parent=cur_node)
 			successors.append(mt)
 
+		successors = self.__remove_invalid_nodes(successors)
+
 		return successors
 
 	def __are_equal_points(self, p1, p2):
 		return p1.x == p2.x and p1.y == p2.y
 
 	def __calculate_heuristic(self, cur_node, successor_node, end_point):
-		successor_node.g = cur_node.g + self.cost_calculator.calculate_cost(cur_node, successor_node, self.grid)
+		successor_node.g = cur_node.g + self.__get_cost_between_nodes(cur_node, successor_node)
 		successor_node.h = self.__get_grid_distance_between_points(successor_node.coord, end_point)
 		successor_node.f = successor_node.g + successor_node.h
 
 	def __is_position_already_reached_with_lower_heuristic(self, cur_node, reached_nodes):
 		temp = list(filter(lambda x: 
-			x.coord.x == cur_node.coord.x and 
-			x.coord.y == cur_node.coord.y and 
+			self.__are_equal_points(x.coord, cur_node.coord) and 
 			x.f <= cur_node.f, 
 			reached_nodes))
 
@@ -444,6 +355,18 @@ class PathFinder:
 			return True
 
 		return False
+
+	def __remove_invalid_nodes(self, successors):
+		if self.user_settings.avoid_water:
+			successors = list(filter(lambda x: self.grid.get_cell(x.coord).water_density == 0, successors))
+
+		return successors
+
+	def __get_cost_between_nodes(self, start_node, end_node):
+		angle_cost = self.__get_angle_cost(start_node, end_node)
+		terrain_cost = self.__get_terrain_cost(end_node)
+
+		return angle_cost + terrain_cost
 
 	def __get_grid_distance_between_points(self, start, end):
 		dx = abs(start.x - end.x)
@@ -455,6 +378,66 @@ class PathFinder:
 		distance = diag_cost + straight_cost
 
 		return distance
+
+	def __get_angle_cost(self, start_node, end_node):
+		angle = self.__get_angle_between_nodes(start_node, end_node)
+		
+		if angle <= self.user_settings.max_angle:
+			angle_cost = (angle / PathFinder.max_angle)
+		else:
+			angle_cost = PathFinder.max_cost
+
+		return angle_cost
+
+	def __get_terrain_cost(self, node):
+		cell = self.grid.get_cell(node.coord)
+
+		terrain_cost = cell.water_density * 10
+		terrain_cost += cell.forrest_density * 10
+
+		return terrain_cost
+
+	def __get_angle_between_nodes(self, start_node, end_node):
+		direction = Point(end_node.coord.x - start_node.coord.x, end_node.coord.y - start_node.coord.y)
+		
+		nearest_density_point = self.__get_nearest_contour_point(end_node.coord, direction)
+
+		start = self.grid.convert_grid_to_pixel_point(start_node.coord)
+		end = self.grid.convert_grid_to_pixel_point(nearest_density_point)
+
+		pixel_dist_to_density = self.__get_pixel_distance_between_points(start, end)
+		feet_dist_to_density = pixel_dist_to_density / self.user_settings.get_feet_per_pixel()
+		feet_dist_to_density = min(feet_dist_to_density, self.user_settings.get_contour_interval_dist())
+
+		theta = math.acos(feet_dist_to_density / self.user_settings.get_contour_interval_dist())
+
+		return math.degrees(theta)
+
+	def __get_nearest_contour_point(self, cur_point, direction):
+		cur_cell = self.grid.get_cell(cur_point)
+
+		while cur_cell.density == 0: 
+			next_point = Point(cur_point.x + direction.x, cur_point.y + direction.y)
+
+			if self.__is_point_in_grid(next_point):
+				cur_point = next_point
+				cur_cell = self.grid.get_cell(cur_point)
+			else:
+				break
+
+		return cur_point
+
+	def __get_pixel_distance_between_points(self, start, end):
+		resized_distance = math.sqrt(math.pow(start.x-end.x, 2) + math.pow(start.y-end.y, 2))
+		actual_distance = resized_distance / UserSettings.resize_factor
+
+		return actual_distance
+
+	def __is_point_in_grid(self, point):
+		if point.x >= 0 and point.x < self.grid.grid_resolution and point.y >= 0 and point.y < self.grid.grid_resolution:
+			return True
+
+		return False
 
 	def draw_path(self, node):
 		path_img = self.user_settings.cropped_img.cv_image.copy()
