@@ -12,14 +12,13 @@ class Cell:
 		self.forrest_density = 0
 
 class Grid:
-	def __init__(self, cropped_img, grid_resolution):
+	def __init__(self, cropped_img, cell_width):
 		self.cropped_img = cropped_img
-		self.grid_resolution = grid_resolution
-		self.array = [[Cell() for x in range(grid_resolution)] for y in range(grid_resolution)]
+		self.cell_width = cell_width
 
 		rows, cols = self.cropped_img.image_masks.topo_mask.shape
-		self.dx = int(cols / grid_resolution)
-		self.dy = int(rows / grid_resolution)
+		self.grid_resolution = rows / self.cell_width
+		self.array = [[Cell() for x in range(self.grid_resolution)] for y in range(self.grid_resolution)]
 
 		self.__initialize_array()
 
@@ -27,14 +26,14 @@ class Grid:
 		return self.array[point.x][point.y]
 
 	def convert_pixel_to_grid_point(self, point):
-		x = int(point.x / self.dx)
-		y = int(point.y / self.dy)
+		x = int(point.x / self.cell_width)
+		y = int(point.y / self.cell_width)
 
 		return Point(x,y)
 
 	def convert_grid_to_pixel_point(self, point):
-		x = (point.x * self.dx) + int(self.dx/2)
-		y = point.y * self.dy + int(self.dy/2)
+		x = (point.x * self.cell_width) + int(self.cell_width/2)
+		y = point.y * self.cell_width + int(self.cell_width/2)
 
 		return Point(x,y)
 
@@ -54,15 +53,15 @@ class Grid:
 		cell_image = self.__get_cell_covered_image(point, mask)
 
 		non_zero_pixels = cv2.countNonZero(cell_image)
-		total_pixels = self.dx * self.dy
+		total_pixels = self.cell_width * self.cell_width
 
 		return non_zero_pixels / total_pixels
 
 	def __get_cell_covered_image(self, point, mask):
-		minY = point.y * self.dy
-		maxY = minY + self.dy
-		minX = point.x * self.dx
-		maxX = minX + self.dx
+		minY = point.y * self.cell_width
+		maxY = minY + self.cell_width
+		minX = point.x * self.cell_width
+		maxX = minX + self.cell_width
 
 		cell_image = mask[minY:maxY, minX:maxX]
 
@@ -73,14 +72,14 @@ class Grid:
 		row, col, chan = copy.shape
 
 		i = 0
-		while i < row:
+		while i < row - self.cell_width:
 			cv2.line(copy,(0,i),(col,i),(255,0,0),lineThickness)
-			i += self.dy
+			i += self.cell_width
 
 		j = 0
-		while j < col:
+		while j < col - self.cell_width:
 			cv2.line(copy,(j,0),(j,row),(255,0,0),lineThickness)
-			j += self.dx
+			j += self.cell_width
 
 		return copy
 
@@ -89,13 +88,13 @@ class Grid:
 
 		for c in range(self.grid_resolution):
 			for r in range(self.grid_resolution):
-				x = (c * self.dx) + int(self.dx / 2)
-				y = (r * self.dy) + int(self.dy / 2)
+				x = (c * self.cell_width) + int(self.cell_width / 2)
+				y = (r * self.cell_width) + int(self.cell_width / 2)
 
 				cell = self.get_cell(Point(c,r))
 
 				if cell.density > 0:
-					cv2.circle(copy, (x,y), int(self.dx/2), (0,255,0), 2)
+					cv2.circle(copy, (x,y), int(self.cell_width/2), (0,255,0), 2)
 
 		return copy
 
@@ -119,7 +118,7 @@ class UserSettings:
 
 		self.avoid_water = None
 		self.max_angle = None
-		self.grid_resolution = None
+		self.cell_width = None
 
 	@classmethod
 	def initialized_from_filename(cls, filename):
@@ -133,10 +132,10 @@ class UserSettings:
 		if self.start is None or self.end is None:
 			self.find_start_end_points()
 
-		if self.avoid_water is None or self.max_angle is None or self.grid_resolution is None:
+		if self.avoid_water is None or self.max_angle is None or self.cell_width is None:
 			self.avoid_water = True
 			self.max_angle = 45
-			self.grid_resolution = 100
+			self.cell_width = 10
 
 	def find_start_end_points(self):
 		self.temp_img = self.topo_map.image.copy()
@@ -225,7 +224,7 @@ class PathFinder:
 
 	def __init__(self, user_settings):
 		self.user_settings = user_settings
-		self.grid = Grid(user_settings.cropped_img, user_settings.grid_resolution)
+		self.grid = Grid(user_settings.cropped_img, user_settings.cell_width)
 
 	@classmethod
 	def run_from_user_settings(cls, user_settings):
