@@ -17,7 +17,7 @@ class Grid:
 		self.cell_width = cell_width
 
 		rows, cols = self.cropped_img.image_masks.topo_mask.shape
-		self.grid_resolution = rows / self.cell_width
+		self.grid_resolution = int(rows / self.cell_width)
 		self.array = [[Cell() for x in range(self.grid_resolution)] for y in range(self.grid_resolution)]
 
 		self.__initialize_array()
