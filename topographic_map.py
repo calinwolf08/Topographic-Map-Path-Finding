@@ -51,7 +51,7 @@ class ImageData:
 		for word, offset in self.__words_offsets:
 			candidates += self.__find_candidates_for_id_and_index(self.word_list, word, offset)
 
-		return candidates[0][1] if len(candidates) > 0 else None 
+		return candidates[0][1] if len(candidates) > 0 else 40 
 
 	def __get_feet_per_pixel(self):
 		# row_size = 6
@@ -98,7 +98,7 @@ class ImageData:
 		# cv2.imshow("blah", img)
 		# print(nums)
 
-		return int(1650 / 5280)# hardcoded estimatem, pixel per mile / ft per mile
+		return 1650 / 5280# hardcoded estimatem, pixel per mile / ft per mile
 
 	def __find_candidates_for_id_and_index(self, word_list, id_word, offset):
 		candidates = []
@@ -107,7 +107,7 @@ class ImageData:
 
 		for i in indices:
 			if word_list[i+offset].isnumeric():
-				cand = (i, word_list[i+offset])
+				cand = (i, int(word_list[i+offset]))
 				candidates.append(cand)
 
 		return candidates
