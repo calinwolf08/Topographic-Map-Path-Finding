@@ -10,6 +10,8 @@ class Point:
 		return "(" + str(self.x) + ", " + str(self.y) + ")"
 
 class Helper:
+	resize_factor = 1
+
 	@staticmethod
 	def convert_image_to_mask(image):
 		mask = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -24,7 +26,8 @@ class Helper:
 		return inverted_mask
 
 	@staticmethod
-	def dilate_image(image, array=(5,5)):
+	# def dilate_image(image, array=(5,5)):
+	def dilate_image(image, array=(1,1)):
 		kernel = np.ones(array, np.uint8)
 		dilated_image = cv2.dilate(image, kernel, iterations=1)
 
@@ -49,12 +52,11 @@ class Helper:
 		cv2.destroyAllWindows()
 
 	@staticmethod
-	def reduce_image_contours(mask, minArea):
+	def reduce_image_contours(mask, minArea, line_thickness = 1):
 		img, contours, hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-		
 		contours = list(filter(lambda c: cv2.contourArea(c) > minArea, contours))
-		
 		reduced = cv2.bitwise_xor(mask, mask)
-		cv2.drawContours(reduced, contours, -1, (255,255,255), cv2.FILLED)
+		# cv2.drawContours(reduced, contours, -1, (255,255,255), cv2.FILLED)
+		cv2.drawContours(reduced, contours, -1, (255,255,255), line_thickness)
 		
 		return reduced

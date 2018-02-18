@@ -45,27 +45,35 @@ from cropped_image import CroppedImage
 def run(name):
 	user_settings = UserSettings.initialized_from_filename(name)
 
-	cv2.imshow("contours", user_settings.cropped_img.contours)
-	cv2.imshow("water", user_settings.cropped_img.image_masks.blue_mask)
+	cv2.imshow("image", user_settings.cropped_img.cv_image)
+	user_settings.cropped_img.image_masks.show_masks()
 
-	path_finder = PathFinder(user_settings)
+	import time
+	start = time.time()
+	contours = user_settings.cropped_img.contours
+	end = time.time()
 
-	image = cv2.cvtColor(path_finder.user_settings.cropped_img.contours, cv2.COLOR_GRAY2BGR)
-	grid_img = path_finder.grid.add_grid_to_image(image, 2)
-	density_img = path_finder.grid.add_density_to_image(grid_img)
+	print("contour extraction time: " + str(end - start))
+	cv2.imshow("contours", contours)
 
-	cv2.imshow("grid", grid_img)
-	cv2.imshow("density", density_img)
+	# path_finder = PathFinder(user_settings)
 
-	path = path_finder.find_path()
+	# image = cv2.cvtColor(path_finder.user_settings.cropped_img.contours, cv2.COLOR_GRAY2BGR)
+	# grid_img = path_finder.grid.add_grid_to_image(image, 2)
+	# density_img = path_finder.grid.add_density_to_image(grid_img)
 
-	if path is None:
-		print("no path found")
-	else:
-		path_img = path_finder.draw_path(path)
-		path_img = cv2.resize(path_img, None, fx=1/2, fy=1/2, 
-			interpolation = cv2.INTER_LINEAR)
-		cv2.imshow('path', path_img)
+	# cv2.imshow("grid", grid_img)
+	# cv2.imshow("density", density_img)
+
+	# path = path_finder.find_path()
+
+	# if path is None:
+	# 	print("no path found")
+	# else:
+	# 	path_img = path_finder.draw_path(path)
+	# 	path_img = cv2.resize(path_img, None, fx=1/2, fy=1/2, 
+	# 		interpolation = cv2.INTER_LINEAR)
+	# 	cv2.imshow('path', path_img)
 
 	print("done")
 	cv2.waitKey(0)

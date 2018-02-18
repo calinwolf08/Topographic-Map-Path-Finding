@@ -111,7 +111,8 @@ class Node:
 		self.parent = parent
 
 class UserSettings:
-	resize_factor = 6
+	# resize_factor = 6
+	# resize_factor = 2
 
 	def __init__(self, topo_map):
 		self.topo_map = topo_map
@@ -142,21 +143,30 @@ class UserSettings:
 			self.cell_width = 50
 
 	def find_start_end_points(self):
-		self.temp_img = self.topo_map.image.copy()
+		# self.temp_img = self.topo_map.image.copy()
 
-		self.start = Point(-1, -1)
-		self.end = Point(-1, -1)
+		# self.start = Point(-1, -1)
+		# self.end = Point(-1, -1)
 
-		cv2.namedWindow("image")
-		cv2.setMouseCallback("image", self.__click_image)
-		cv2.imshow("image", self.temp_img)
+		# cv2.namedWindow("image")
+		# cv2.setMouseCallback("image", self.__click_image)
+		# cv2.imshow("image", self.temp_img)
 
-		while(self.start.x < 0 or self.end.x < 0):
-			k = cv2.waitKey(1000) & 0xFF
-			cv2.imshow("image", self.temp_img)
+		# while(self.start.x < 0 or self.end.x < 0):
+		# 	k = cv2.waitKey(1000) & 0xFF
+		# 	cv2.imshow("image", self.temp_img)
 
-			if k == ord('q') or k == ord(' '):
-				break
+		# 	if k == ord('q') or k == ord(' '):
+		# 		break
+
+		# print(self.start)
+		# print(self.end)
+
+		# self.start = Point(342, 357)
+		# self.end = Point(586, 527)
+
+		self.start = Point(400, 400)
+		self.end = Point(1000, 1000)
 
 		self.__find_cropped_image()
 
@@ -195,11 +205,11 @@ class UserSettings:
 		eyFactor = ((self.end.y - minY) / height)
 
 		# width/height of cropped and rescaled image
-		width *= UserSettings.resize_factor
-		height *= UserSettings.resize_factor
+		width *= Helper.resize_factor
+		height *= Helper.resize_factor
 
 		# scale image by resize factor
-		img = cv2.resize(img, None, fx=UserSettings.resize_factor, fy=UserSettings.resize_factor, 
+		img = cv2.resize(img, None, fx=Helper.resize_factor, fy=Helper.resize_factor, 
 			interpolation = cv2.INTER_LINEAR)
 		
 		# init cropped_img for extracting contours, etc.		

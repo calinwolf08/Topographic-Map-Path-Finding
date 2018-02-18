@@ -21,21 +21,21 @@ class ImageMasks:
 		return is_generated
 
 	def show_masks(self):
-		cv2.imshow('topo_mask', self.topo_mask)
-		cv2.imshow('blue_mask', self.blue_mask)
+		# cv2.imshow('topo_mask', self.topo_mask)
+		# cv2.imshow('blue_mask', self.blue_mask)
 		cv2.imshow('black_mask', self.black_mask)
 		cv2.imshow('red_mask', self.red_mask)
-		cv2.imshow('green_mask', self.green_mask)
+		# cv2.imshow('green_mask', self.green_mask)
 
 class MaskGenerator:
 	low_blue = np.array([50, 35, 100])
 	high_blue = np.array([100, 150, 255])
 
 	low_black = np.array([0, 0, 0])
-	high_black = np.array([100, 100, 150])
+	high_black = np.array([100, 75, 150])
 
-	low_red = np.array([0, 75, 210])
-	high_red = np.array([10, 255, 255])
+	low_red = np.array([0, 150, 150])
+	high_red = np.array([255, 255, 255])
 
 	low_green = np.array([20, 35, 100])
 	high_green = np.array([50, 150, 255])
@@ -65,42 +65,79 @@ class MaskGenerator:
 		return blue_mask
 
 	def __generate_black_mask(self):
-		black_mask = self.__generate_general_color_lines_mask(MaskGenerator.low_black, MaskGenerator.high_black)
+		black_range = self.__get_image_in_range_from_hsv(MaskGenerator.low_black, MaskGenerator.high_black)
+		filled_contours = self.__get_filled_contours_from_image(black_range)
+		contours_mask = Helper.convert_image_to_mask(filled_contours)
+		dilated = Helper.dilate_image(contours_mask, array=(2,2))
+		black_mask = Helper.reduce_image_contours(dilated, 6, line_thickness = cv2.FILLED)
 
 		return black_mask
 
 	def __generate_red_mask(self):
-		red_mask = self.__generate_general_color_lines_mask(MaskGenerator.low_red, MaskGenerator.high_red)
+		red_range = self.__get_image_in_range_from_hsv(MaskGenerator.low_red, MaskGenerator.high_red)
+		filled_contours = self.__get_filled_contours_from_image(red_range)
+		contours_mask = Helper.convert_image_to_mask(filled_contours)
+		dilated = Helper.dilate_image(contours_mask, array=(2,2))
+		reduced = Helper.reduce_image_contours(dilated, 6, line_thickness = cv2.FILLED)
 
-		return red_mask
+		# contour_connector = ContourConnector(reduced)
+		# contour_connector.connect_contours_within_distance(50)
+		# red_mask = contour_connector.connected_contours_mask
+
+		# return red_mask
+
+		return reduced
 
 	def __generate_green_mask(self):
 		green_range = self.__get_image_in_range_from_hsv(MaskGenerator.low_green, MaskGenerator.high_green)
 		filled_green_contours = self.__get_filled_contours_from_image(green_range)
 		green_mask = Helper.convert_image_to_mask(filled_green_contours)
-		green_mask_reduced = Helper.reduce_image_contours(green_mask, 200)
+		green_mask_reduced = Helper.reduce_image_contours(green_mask, 200, line_thickness = cv2.FILLED)
 
 		return green_mask_reduced
 
 	def __generate_general_color_lines_mask(self, low_range, high_range):
 		color_range = self.__get_image_in_range_from_hsv(low_range, high_range)
-
+		# Helper.show_images_and_wait([self.bgr_image, color_range])
+		
 		filled_contours = self.__get_filled_contours_from_image(color_range)
 		dilated_contours = Helper.dilate_image(filled_contours)
-
 		contours_mask = Helper.convert_image_to_mask(dilated_contours)
 		
-		contours_mask_reduced = Helper.reduce_image_contours(contours_mask, 75)
-		contours_mask_reduced_color = self.__add_color_to_image(contours_mask_reduced)
+		# min_area = 12 * Helper.resize_factor
+		# min_area = 1
+		# contours_mask_reduced = Helper.reduce_image_contours(contours_mask, min_area, line_thickness = cv2.FILLED)
+		# contour_connector = ContourConnector(contours_mask_reduced)
+
+		array = (2, 2)
+		kernel = np.ones(array, np.uint8)
+		eroded_image = cv2.dilate(contours_mask, kernel, iterations=1)
+
+		min_area = 6
+		reduced = Helper.reduce_image_contours(eroded_image, min_area, line_thickness = cv2.FILLED)
+
+		# max_distance = 25 * Helper.resize_factor
+		# # contour_connector = ContourConnector(contours_mask)
+		# contour_connector = ContourConnector(reduced)
+		# contour_connector.connect_contours_within_distance(max_distance)
+		# connected_mask = contour_connector.connected_contours_mask
+
+		# Helper.show_images_and_wait([self.bgr_image, contours_mask, eroded_image, reduced, connected_mask])
+
+		# min_area = 1
+		# contours_connected_reduced = Helper.reduce_image_contours(connected_mask, min_area, line_thickness = cv2.FILLED)
 		
-		contour_connector = ContourConnector(contours_mask_reduced)
-		contour_connector.connect_contours_within_distance(30)
-		connected_mask = contour_connector.connected_contours_mask
+		# max_distance = 25 * Helper.resize_factor
+		# contour_connector = ContourConnector(contours_connected_reduced)
+		# contour_connector.connect_contours_within_distance(max_distance)
+		# connected_mask2 = contour_connector.connected_contours_mask
 
-		contours_connected_reduced = Helper.reduce_image_contours(connected_mask, 1000)
-		mask = Helper.dilate_image(contours_connected_reduced)
+		# # mask = Helper.dilate_image(contours_connected_reduced)
+		# mask = Helper.dilate_image(connected_mask2)
 
-		return mask
+		# return mask
+		return reduced
+		# return connected_mask
 
 	def __get_image_in_range_from_hsv(self, low, high):
 		image_in_range = cv2.inRange(self.hsv_image, low, high)
