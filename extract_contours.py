@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-import random, math
+import random, math, time
 
 from helper_functions import Helper
 
@@ -33,7 +33,6 @@ class ContourConnector:
 
 	def __connect_contours(self, distance):
 		contours = self.__get_contours(self.connected_contours_mask)
-		
 		extremes = self.__get_contour_extremes(contours)
 		self.__connect_extremes(extremes, distance)
 
@@ -81,22 +80,21 @@ class ContourConnector:
 			x[1] > border_thresh and x[1] < h-border_thresh, points))
 
 		# self.connected_contours_mask = cv2.cvtColor(self.connected_contours_mask, cv2.COLOR_GRAY2BGR)
-
 		for e in extremes:
-			# first point in e
+			# first extreme point in e
 			x = e[0][0]
 			y = e[0][1]
 
 			if x > border_thresh and x < w-border_thresh and y > border_thresh and y < h-border_thresh:
 				self.__connect_points(e[0], e[1], points, distance)
 			
-			# second point in e
+			# second extreme point in e
 			x = e[1][0]
 			y = e[1][1]
 
 			if x > border_thresh and x < w-border_thresh and y > border_thresh and y < h-border_thresh:
 				self.__connect_points(e[1], e[0], points, distance)
-
+				
 		# self.connected_contours_mask = Helper.convert_image_to_mask(self.connected_contours_mask)
 
 	def __connect_points(self, p1, p2, points, distance):
@@ -109,7 +107,7 @@ class ContourConnector:
 
 		if self.__dist_to_pt(p, p1) < distance:
 			# cv2.line(self.connected_contours_mask, p1, p, (0,0,255), lineThickness)
-			cv2.line(self.connected_contours_mask, p1, p, (255,255,255), Helper.resize_factor)
+			cv2.line(self.connected_contours_mask, p1, p, (255,255,255), 1)
 
 	def __dist_to_pt(self, pt1, pt2):
 		return math.sqrt((pt1[0]-pt2[0])**2 + (pt1[1]-pt2[1])**2)
@@ -122,17 +120,24 @@ class ContourExtractor:
 		self.extracted_contours = self.__extract_contours()
 
 	def __extract_contours(self):
-		# distances = list(map(lambda x: x * Helper.resize_factor, [2, 4, 5, 7, 9, 10, 12]))
 		distances = list(map(lambda x: x * Helper.resize_factor, [4, 6, 8, 10, 12, 14]))
+		# distances = list(map(lambda x: x * Helper.resize_factor, [4]))
 
 		min_contour_area = 8 * Helper.resize_factor
 		first_prepared_mask = self.__prepare_for_first_contour_connecting()
-		first_connected_mask = self.__connect_contours_by_distances(first_prepared_mask, distances[:3], min_contour_area)		
-		min_contour_area = 2
-		second_prepared_mask = self.__prepare_for_second_contour_connecting(first_connected_mask)
-		second_connected_mask = self.__connect_contours_by_distances(second_prepared_mask, distances[3:], min_contour_area)
 
-		return second_connected_mask
+		temp = first_prepared_mask.copy()
+		temp = self.__prepare_for_second_contour_connecting(temp)
+		cv2.imshow("temp", temp)
+
+		return temp
+		
+		# first_connected_mask = self.__connect_contours_by_distances(first_prepared_mask, distances[:3], min_contour_area)		
+		# min_contour_area = 2
+		# second_prepared_mask = self.__prepare_for_second_contour_connecting(first_connected_mask)
+		# second_connected_mask = self.__connect_contours_by_distances(second_prepared_mask, distances[3:], min_contour_area)
+
+		# return second_connected_mask
 
 	def __prepare_for_first_contour_connecting(self):
 		dilated_image = Helper.dilate_image(self.cv_image)

@@ -1,4 +1,5 @@
 import cv2
+import time
 
 from topographic_map import TopographicMap
 from path_finding import PathFinder
@@ -42,13 +43,14 @@ from cropped_image import CroppedImage
 # TODO: improve efficiency
 	# concurrency where applicable?
 
+# TODO: dealing with thick red lines
+
 def run(name):
 	user_settings = UserSettings.initialized_from_filename(name)
 
 	cv2.imshow("image", user_settings.cropped_img.cv_image)
-	user_settings.cropped_img.image_masks.show_masks()
+	# user_settings.cropped_img.image_masks.show_masks()
 
-	import time
 	start = time.time()
 	contours = user_settings.cropped_img.contours
 	end = time.time()
@@ -56,24 +58,26 @@ def run(name):
 	print("contour extraction time: " + str(end - start))
 	cv2.imshow("contours", contours)
 
-	# path_finder = PathFinder(user_settings)
+	path_finder = PathFinder(user_settings)
 
-	# image = cv2.cvtColor(path_finder.user_settings.cropped_img.contours, cv2.COLOR_GRAY2BGR)
-	# grid_img = path_finder.grid.add_grid_to_image(image, 2)
-	# density_img = path_finder.grid.add_density_to_image(grid_img)
+	image = cv2.cvtColor(path_finder.user_settings.cropped_img.contours, cv2.COLOR_GRAY2BGR)
+	grid_img = path_finder.grid.add_grid_to_image(image, 1)
+	density_img = path_finder.grid.add_density_to_image(grid_img)
 
 	# cv2.imshow("grid", grid_img)
-	# cv2.imshow("density", density_img)
+	cv2.imshow("density", density_img)
 
-	# path = path_finder.find_path()
+	start = time.time()
+	path = path_finder.find_path()
+	end = time.time()
 
-	# if path is None:
-	# 	print("no path found")
-	# else:
-	# 	path_img = path_finder.draw_path(path)
-	# 	path_img = cv2.resize(path_img, None, fx=1/2, fy=1/2, 
-	# 		interpolation = cv2.INTER_LINEAR)
-	# 	cv2.imshow('path', path_img)
+	print("path finding time: " + str(end - start))
+
+	if path is None:
+		print("no path found")
+	else:
+		path_img = path_finder.draw_path(path)
+		cv2.imshow('path', path_img)
 
 	print("done")
 	cv2.waitKey(0)

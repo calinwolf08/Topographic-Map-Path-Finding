@@ -97,8 +97,8 @@ class Grid:
 
 				cell = self.get_cell(Point(c,r))
 
-				if cell.density > 0.1:
-					cv2.circle(copy, (x,y), int(self.cell_width/2), (0,255,0), 2)
+				if cell.water_density > 0.1:
+					cv2.circle(copy, (x,y), int(self.cell_width/2), (0,255,0), 1)
 
 		return copy
 
@@ -111,8 +111,6 @@ class Node:
 		self.parent = parent
 
 class UserSettings:
-	# resize_factor = 6
-	# resize_factor = 2
 
 	def __init__(self, topo_map):
 		self.topo_map = topo_map
@@ -136,11 +134,12 @@ class UserSettings:
 	def init_settings(self):
 		if self.start is None or self.end is None:
 			self.find_start_end_points()
+			self.find_cropped_image()
 
 		if self.avoid_water is None or self.max_angle is None or self.cell_width is None:
 			self.avoid_water = True
 			self.max_angle = 45
-			self.cell_width = 50
+			self.cell_width = 20
 
 	def find_start_end_points(self):
 		# self.temp_img = self.topo_map.image.copy()
@@ -159,16 +158,15 @@ class UserSettings:
 		# 	if k == ord('q') or k == ord(' '):
 		# 		break
 
+		# cv2.imshow("image", self.temp_img)
 		# print(self.start)
 		# print(self.end)
 
-		# self.start = Point(342, 357)
-		# self.end = Point(586, 527)
+		self.start = Point(388, 327)
+		self.end = Point(951, 441)
 
-		self.start = Point(400, 400)
-		self.end = Point(1000, 1000)
-
-		self.__find_cropped_image()
+		# self.start = Point(400, 400)
+		# self.end = Point(600, 600)
 
 	def get_feet_per_pixel(self):
 		return self.topo_map.image_data.feet_per_pixel
@@ -176,7 +174,7 @@ class UserSettings:
 	def get_contour_interval_dist(self):
 		return self.topo_map.image_data.contour_interval_dist
 
-	def __find_cropped_image(self, padding = 50):
+	def find_cropped_image(self, padding = 50):
 		# get max of width and height of points
 		dist = max(abs(self.start.x - self.end.x), abs(self.start.y - self.end.y))
 
@@ -253,25 +251,27 @@ class PathFinder:
 		return path, path_img
 
 	def find_path(self):
-		grid_start = self.grid.convert_pixel_to_grid_point(self.user_settings.cropped_img.start)
-		grid_end = self.grid.convert_pixel_to_grid_point(self.user_settings.cropped_img.end)
+		print("start: " + str(self.user_settings.start))
+		print("end: " + str(self.user_settings.end))
+		self.grid_start = self.grid.convert_pixel_to_grid_point(self.user_settings.cropped_img.start)
+		self.grid_end = self.grid.convert_pixel_to_grid_point(self.user_settings.cropped_img.end)
 
-		return self.__calculate_path(grid_start, grid_end)
+		return self.__calculate_path()
 
 	def find_path_from_pixel_coords(self, start_point, end_point):
-		grid_start = self.grid.convert_pixel_to_grid_point(self._cropped_start)
-		grid_end = self.grid.convert_pixel_to_grid_point(self._cropped_end)
+		self.grid_start = self.grid.convert_pixel_to_grid_point(self._cropped_start)
+		self.grid_end = self.grid.convert_pixel_to_grid_point(self._cropped_end)
 
-		return self.__calculate_path(grid_start, grid_end)
+		return self.__calculate_path()
 
-	def __calculate_path(self, start_point, end_point):
-		open_nodes = [Node(start_point)]
+	def __calculate_path(self):
+		open_nodes = [Node(self.grid_start)]
 		closed_nodes = []
 
 		count = 0
 
-		print("start: " + str(start_point.x) + ", " + str(start_point.y))
-		print("end: " + str(end_point.x) + ", " + str(end_point.y))
+		print("start: " + str(self.grid_start))
+		print("end: " + str(self.grid_end))
 
 		while len(open_nodes) > 0:
 			open_nodes.sort(key = lambda x: x.f, reverse=True)
@@ -279,10 +279,10 @@ class PathFinder:
 			successors = self.__generate_successor_nodes(cur_node)
 
 			for successor in successors:
-				if self.__are_equal_points(successor.coord, end_point):
+				if self.__are_equal_points(successor.coord, self.grid_end):
 					return successor
 
-				self.__calculate_heuristic(cur_node, successor, end_point)
+				self.__calculate_heuristic(cur_node, successor, self.grid_end)
 
 				if not self.__is_position_already_reached_with_lower_heuristic(successor, open_nodes) and \
 				not self.__is_position_already_reached_with_lower_heuristic(successor, closed_nodes):
@@ -293,6 +293,7 @@ class PathFinder:
 			count += 1
 
 			if count % 100 == 0:
+				print("successors: " + str(len(successors)))
 				print("open nodes: " + str(len(open_nodes)))
 				print("closed nodes: " + str(len(closed_nodes)))
 				print("---------")
@@ -382,7 +383,9 @@ class PathFinder:
 		br = self.__get_nearest_contour_node(cur_node, Point(1, 1))
 		brl = self.__get_nearest_contour_node(cur_node, Point(1, 2))
 
-		return list(filter(lambda x: x is not None, [tl, tlr, tm, tr, trl, ml, mlt, mlb, mr, mrt, mrb, bl, blr, bm, br, brl]))
+		successors = [tl, tlr, tm, tr, trl, ml, mlt, mlb, mr, mrt, mrb, bl, blr, bm, br, brl]
+
+		return list(filter(lambda x: x is not None, successors))
 
 	def __are_equal_points(self, p1, p2):
 		return p1.x == p2.x and p1.y == p2.y
@@ -403,26 +406,25 @@ class PathFinder:
 
 		return False
 
-	def __get_nearest_contour_node(self, cur_node, direction):
-		cur_point = self.__get_next_point(cur_node.coord, direction)
+	def __get_nearest_contour_node(self, start_node, direction):
+		start_point = start_node.coord
 		nearest_node = None
 
-		count = 0
-
 		while nearest_node is None:
+			cur_point = self.__get_next_point(start_point, direction)
+
 			if self.__is_point_valid(cur_point):
 				cur_cell = self.grid.get_cell(cur_point)
 
-				if cur_cell.density > 0:
-					nearest_node = Node(cur_point, parent=cur_node)
+				if cur_cell.density > 0 or self.__are_equal_points(cur_point, self.grid_end):
+					nearest_node = Node(cur_point, parent=start_node)
 				else:
-					cur_point = self.__get_next_point(cur_point, direction)
+					start_point = cur_point
+			elif not self.__is_point_in_grid(cur_point) and \
+			not self.__are_equal_points(start_point, start_node.coord):
+				nearest_node = Node(start_point, parent=start_node)
 			else:
 				break
-
-			# count += 1
-			# print("===" + str(count))
-			# print(str(cur_point) + "===")
 
 		return nearest_node
 
@@ -449,14 +451,14 @@ class PathFinder:
 			temp_point = Point(cur_point.x + int(direction.x/2), cur_point.y + direction.y)
 			temp_point2 = Point(cur_point.x + int(direction.x/2), cur_point.y + int(direction.y/2))
 
-			if not self.__is_point_valid(temp_point) or not self.__is_point_valid(temp_point2):
+			if not self.__is_point_valid(temp_point) and not self.__is_point_valid(temp_point2):
 				return None
 
 		if abs(direction.y) > 1:
 			temp_point = Point(cur_point.x + int(direction.x/2), cur_point.y + int(direction.y/2))
 			temp_point2 = Point(cur_point.x + direction.x, cur_point.y + int(direction.y/2))
 
-			if not self.__is_point_valid(temp_point) or not self.__is_point_valid(temp_point2):
+			if not self.__is_point_valid(temp_point) and not self.__is_point_valid(temp_point2):
 				return None
 
 		next_point = Point(cur_point.x + direction.x, cur_point.y + direction.y)
@@ -525,11 +527,14 @@ class PathFinder:
 
 	def __get_pixel_distance_between_points(self, start, end):
 		resized_distance = math.sqrt(math.pow(start.x-end.x, 2) + math.pow(start.y-end.y, 2))
-		actual_distance = resized_distance / UserSettings.resize_factor
+		actual_distance = resized_distance / Helper.resize_factor
 
 		return actual_distance
 
 	def __is_point_in_grid(self, point):
+		if point is None:
+			return False
+
 		if point.x >= 0 and point.x < self.grid.grid_resolution and point.y >= 0 and point.y < self.grid.grid_resolution:
 			return True
 
