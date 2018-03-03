@@ -94,7 +94,7 @@ class ContourConnector:
 
 			if x > border_thresh and x < w-border_thresh and y > border_thresh and y < h-border_thresh:
 				self.__connect_points(e[1], e[0], points, distance)
-				
+
 		# self.connected_contours_mask = Helper.convert_image_to_mask(self.connected_contours_mask)
 
 	def __connect_points(self, p1, p2, points, distance):
@@ -128,7 +128,6 @@ class ContourExtractor:
 
 		temp = first_prepared_mask.copy()
 		temp = self.__prepare_for_second_contour_connecting(temp)
-		cv2.imshow("temp", temp)
 
 		return temp
 		

@@ -63,7 +63,7 @@ class MaskGenerator:
 		filled_blue_contours = self.__get_filled_contours_from_image(blue_range)
 		blue_mask = Helper.convert_image_to_mask(filled_blue_contours)
 		dilated = Helper.dilate_image(blue_mask, array=(2,2))
-		blue_mask = Helper.reduce_image_contours(dilated, 6, line_thickness = cv2.FILLED)
+		blue_mask = Helper.reduce_image_contours(dilated, 15, line_thickness = cv2.FILLED)
 		
 		return blue_mask
 

@@ -19,11 +19,11 @@ class ImageData:
 	def __init__(self, image):
 		self.image = image
 
-		self.sub_image = self.__get_sub_image()
+		# self.sub_image = self.__get_sub_image()
 		
-		word_list, box_list = self.__get_words()
-		self.word_list = word_list
-		self.box_list = box_list
+		# word_list, box_list = self.__get_words()
+		# self.word_list = word_list
+		# self.box_list = box_list
 		
 		self._contour_interval_dist = None
 		self._feet_per_pixel = None
@@ -98,7 +98,7 @@ class ImageData:
 		# cv2.imshow("blah", img)
 		# print(nums)
 
-		return 1650 / 5280# hardcoded estimatem, pixel per mile / ft per mile
+		return 5280 / 1650# hardcoded estimatem, ft per mile / pixel per mile = feet per pixel
 
 	def __find_candidates_for_id_and_index(self, word_list, id_word, offset):
 		candidates = []
@@ -128,10 +128,11 @@ class ImageData:
 
 	@property
 	def contour_interval_dist(self):
-		if self._contour_interval_dist is None:
-			self._contour_interval_dist = self.__get_countour_interval_dist()
+		# if self._contour_interval_dist is None:
+		# 	self._contour_interval_dist = self.__get_countour_interval_dist()
 
-		return self._contour_interval_dist
+		# return self._contour_interval_dist
+		return 40
 
 	@contour_interval_dist.setter
 	def contour_interval_dist(self, value):

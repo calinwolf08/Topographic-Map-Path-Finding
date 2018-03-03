@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import math
 
 class Point:
 	def __init__(self, x, y):
@@ -60,3 +61,10 @@ class Helper:
 		cv2.drawContours(reduced, contours, -1, (255,255,255), line_thickness)
 		
 		return reduced
+
+	@staticmethod
+	def convert_angle_to_grade(angle):
+		tangent = math.tan(angle)
+		grade = tangent * 100
+
+		return grade

@@ -97,8 +97,27 @@ class Grid:
 
 				cell = self.get_cell(Point(c,r))
 
-				if cell.water_density > 0.1:
+				if cell.forrest_density > 0:
 					cv2.circle(copy, (x,y), int(self.cell_width/2), (0,255,0), 1)
+
+				if cell.water_density > 0:
+					cv2.circle(copy, (x,y), int(self.cell_width/2), (255,0,0), 1)
+
+		return copy
+
+	def add_heat_map_to_image(self, img):
+		copy = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+		for c in range(self.grid_resolution):
+			for r in range(self.grid_resolution):
+				x = (c * self.cell_width) + int(self.cell_width / 2)
+				y = (r * self.cell_width) + int(self.cell_width / 2)
+
+				cell = self.get_cell(Point(c,r))
+
+				cv2.circle(copy, (x,y), int(self.cell_width/1), (abs(1-cell.density) * 120,255,255), -1)
+
+		copy = cv2.cvtColor(copy, cv2.COLOR_HSV2BGR)
 
 		return copy
 
@@ -112,61 +131,65 @@ class Node:
 
 class UserSettings:
 
-	def __init__(self, topo_map):
-		self.topo_map = topo_map
+	def __init__(self):
+		self.topo_map = None
 
-		self.start = None
-		self.end = None
+		self.start = Point(350, 220)
+		self.end = Point(850, 700)
 		self.cropped_img = None
 
-		self.avoid_water = None
-		self.max_angle = None
-		self.cell_width = None
+		self.avoid_water = False
+		self.avoid_forrest = False
+		self.max_grade = 30
+		self.cell_width = 5
+
+	def __str__(self):
+		ret = "1) filename: " + (self.topo_map.filename if self.topo_map is not None else "None") + "\n"
+		ret += "2) start/end: " + str(self.start) + " --> " + str(self.end) + "\n"
+		ret += "3) avoid water: " + str(self.avoid_water) + "\n"
+		ret += "4) avoid terrain: " + str(self.avoid_forrest) + "\n"
+		ret += "5) max grade: " + str(self.max_grade) + "\n"
+		ret += "6) path precision (grid width): " + str(self.cell_width)
+
+		return ret
 
 	@classmethod
 	def initialized_from_filename(cls, filename):
-		topo_map = TopographicMap(filename)
-		user_settings = cls(topo_map)
-		user_settings.init_settings()
+		user_settings = cls()
+		user_settings.set_topo_map(filename)
 
 		return user_settings
 
-	def init_settings(self):
-		if self.start is None or self.end is None:
-			self.find_start_end_points()
-			self.find_cropped_image()
-
-		if self.avoid_water is None or self.max_angle is None or self.cell_width is None:
-			self.avoid_water = True
-			self.max_angle = 45
-			self.cell_width = 20
+	def set_topo_map(self, filename):
+		self.topo_map = TopographicMap(filename)
 
 	def find_start_end_points(self):
-		# self.temp_img = self.topo_map.image.copy()
+		self.temp_img = self.topo_map.image.copy()
 
-		# self.start = Point(-1, -1)
-		# self.end = Point(-1, -1)
+		self.start = Point(-1, -1)
+		self.end = Point(-1, -1)
 
-		# cv2.namedWindow("image")
-		# cv2.setMouseCallback("image", self.__click_image)
-		# cv2.imshow("image", self.temp_img)
+		cv2.namedWindow("image")
+		cv2.setMouseCallback("image", self.__click_image)
+		cv2.imshow("image", self.temp_img)
 
-		# while(self.start.x < 0 or self.end.x < 0):
-		# 	k = cv2.waitKey(1000) & 0xFF
-		# 	cv2.imshow("image", self.temp_img)
+		while(self.start.x < 0 or self.end.x < 0):
+			k = cv2.waitKey(1000) & 0xFF
+			cv2.imshow("image", self.temp_img)
 
-		# 	if k == ord('q') or k == ord(' '):
-		# 		break
+			if k == ord('q') or k == ord(' '):
+				break
 
-		# cv2.imshow("image", self.temp_img)
+		cv2.imshow("image", self.temp_img)
 		# print(self.start)
 		# print(self.end)
 
-		self.start = Point(388, 327)
-		self.end = Point(951, 441)
+		# self.start = Point(1385, 620)
+		# self.end = Point(1525, 462)
 
 		# self.start = Point(400, 400)
 		# self.end = Point(600, 600)
+		self.find_cropped_image()
 
 	def get_feet_per_pixel(self):
 		return self.topo_map.image_data.feet_per_pixel
@@ -231,7 +254,7 @@ class UserSettings:
 class PathFinder:
 	step_cost = 1
 	diag_step_cost = math.sqrt(2)
-	max_angle = 90
+	max_grade = 100
 	max_cost = 1000
 
 	def __init__(self, user_settings):
@@ -272,6 +295,7 @@ class PathFinder:
 
 		print("start: " + str(self.grid_start))
 		print("end: " + str(self.grid_end))
+		print(self.grid.grid_resolution * self.grid.grid_resolution)
 
 		while len(open_nodes) > 0:
 			open_nodes.sort(key = lambda x: x.f, reverse=True)
@@ -432,6 +456,10 @@ class PathFinder:
 		angle_cost = self.__get_angle_cost(start_node, end_node)
 		terrain_cost = self.__get_terrain_cost(end_node)
 		distance = self.__get_grid_distance_between_points(start_node.coord, end_node.coord)
+		# print("angle_cost: " + str(angle_cost))
+		# print("terrain_cost: " + str(terrain_cost))
+		# print("distance_cost: " + str(distance))
+		# print("-------")
 
 		return angle_cost + terrain_cost + distance
 
@@ -447,23 +475,29 @@ class PathFinder:
 		return distance
 
 	def __get_next_point(self, cur_point, direction):
-		if abs(direction.x) > 1:
-			temp_point = Point(cur_point.x + int(direction.x/2), cur_point.y + direction.y)
-			temp_point2 = Point(cur_point.x + int(direction.x/2), cur_point.y + int(direction.y/2))
+		temp_point, temp_point2 = self.__get_points_between(cur_point, direction)
 
-			if not self.__is_point_valid(temp_point) and not self.__is_point_valid(temp_point2):
-				return None
-
-		if abs(direction.y) > 1:
-			temp_point = Point(cur_point.x + int(direction.x/2), cur_point.y + int(direction.y/2))
-			temp_point2 = Point(cur_point.x + direction.x, cur_point.y + int(direction.y/2))
-
-			if not self.__is_point_valid(temp_point) and not self.__is_point_valid(temp_point2):
+		if temp_point is not None and temp_point2 is not None:
+			if not self.__is_point_valid(temp_point) or not self.__is_point_valid(temp_point2):
 				return None
 
 		next_point = Point(cur_point.x + direction.x, cur_point.y + direction.y)
 
 		return next_point
+
+	def __get_points_between(self, cur_point, direction):
+		point = None
+		point2 = None
+
+		if abs(direction.x) > 1:
+			point = Point(cur_point.x + int(direction.x/2), cur_point.y + direction.y)
+			point2 = Point(cur_point.x + int(direction.x/2), cur_point.y + int(direction.y/2))
+
+		elif abs(direction.y) > 1:
+			point = Point(cur_point.x + int(direction.x/2), cur_point.y + int(direction.y/2))
+			point2 = Point(cur_point.x + direction.x, cur_point.y + int(direction.y/2))
+
+		return point, point2
 
 	def __is_point_valid(self, point):
 		if point is None:
@@ -472,58 +506,84 @@ class PathFinder:
 		if not self.__is_point_in_grid(point):
 			return False
 
-		if self.user_settings.avoid_water and self.grid.get_cell(point).water_density != 0:
-			return False
-
 		return True
 
 	def __get_angle_cost(self, start_node, end_node):
-		angle = self.__get_angle_between_nodes(start_node, end_node)
+		grade = self.__get_grade_between_nodes(start_node, end_node)
 		
-		if angle <= self.user_settings.max_angle:
-			angle_cost = (angle / PathFinder.max_angle)
+		if grade <= self.user_settings.max_grade:
+			angle_cost = (grade / PathFinder.max_grade)
+			angle_cost = math.pow(angle_cost, 1)
 		else:
 			angle_cost = PathFinder.max_cost
 
-		return angle_cost
+		return angle_cost * 10
 
 	def __get_terrain_cost(self, node):
 		cell = self.grid.get_cell(node.coord)
 
-		terrain_cost = cell.water_density * 10
-		terrain_cost += cell.forrest_density * 10
+		if self.user_settings.avoid_water:
+			water_cost = cell.water_density * PathFinder.max_cost
+		else:
+			water_cost = cell.water_density
 
-		return terrain_cost
+		if self.user_settings.avoid_forrest:
+			forrest_cost = cell.forrest_density * PathFinder.max_cost
+		else:
+			forrest_cost = cell.forrest_density
 
-	def __get_angle_between_nodes(self, start_node, end_node):
+		terrain_cost = water_cost + forrest_cost
+
+		return terrain_cost * 10
+
+	def __get_grade_between_nodes(self, start_node, end_node):
 		direction = Point(end_node.coord.x - start_node.coord.x, end_node.coord.y - start_node.coord.y)
-		
-		nearest_density_point = end_node.coord#self.__get_nearest_contour_point(end_node.coord, direction)
+		nearest_density_point = self.__get_nearest_contour_point(start_node.coord, direction)
 
 		start = self.grid.convert_grid_to_pixel_point(start_node.coord)
 		end = self.grid.convert_grid_to_pixel_point(nearest_density_point)
 
 		pixel_dist_to_density = self.__get_pixel_distance_between_points(start, end)
-		feet_dist_to_density = pixel_dist_to_density / self.user_settings.get_feet_per_pixel()
-		feet_dist_to_density = min(feet_dist_to_density, self.user_settings.get_contour_interval_dist())
+		feet_dist_to_density = pixel_dist_to_density * self.user_settings.get_feet_per_pixel()
 
-		theta = math.acos(feet_dist_to_density / self.user_settings.get_contour_interval_dist())
+		theta = math.atan(self.user_settings.get_contour_interval_dist() / feet_dist_to_density)
+		angle = math.degrees(theta)
 
-		return math.degrees(theta)
+		grade = Helper.convert_angle_to_grade(theta)
 
-	def __get_nearest_contour_point(self, cur_point, direction):
-		cur_cell = self.grid.get_cell(cur_point)
+		return grade
 
-		while cur_cell.density == 0: 
-			next_point = Point(cur_point.x + direction.x, cur_point.y + direction.y)
+	def __get_nearest_contour_point(self, start_point, direction):
+		cur_point = start_point
+		next_point = Point(cur_point.x + direction.x, cur_point.y + direction.y)
 
+		while self.__is_density_between_points(cur_point, direction) == False: 
 			if self.__is_point_in_grid(next_point):
 				cur_point = next_point
-				cur_cell = self.grid.get_cell(cur_point)
+				next_point = Point(cur_point.x + direction.x, cur_point.y + direction.y)
 			else:
 				break
 
-		return cur_point
+		return next_point
+
+	def __is_density_between_points(self, cur_point, direction):
+		density = 0
+
+		if abs(direction.x) > 1 or abs(direction.y > 1):
+			temp_point, temp_point2 = self.__get_points_between(cur_point, direction)
+			density += self.__get_density_from_point(temp_point)
+			density += self.__get_density_from_point(temp_point2)
+
+		density += self.__get_density_from_point(cur_point)
+
+		return density == 0
+
+	def __get_density_from_point(self, point):
+		if self.__is_point_in_grid(point):
+			cell = self.grid.get_cell(point)
+			return cell.density
+		else:
+			return 0
 
 	def __get_pixel_distance_between_points(self, start, end):
 		resized_distance = math.sqrt(math.pow(start.x-end.x, 2) + math.pow(start.y-end.y, 2))
