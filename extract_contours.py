@@ -129,6 +129,8 @@ class ContourExtractor:
 		temp = first_prepared_mask.copy()
 		temp = self.__prepare_for_second_contour_connecting(temp)
 
+		# temp = self.__test_extract_contours(temp)
+
 		return temp
 		
 		# first_connected_mask = self.__connect_contours_by_distances(first_prepared_mask, distances[:3], min_contour_area)		
@@ -138,11 +140,202 @@ class ContourExtractor:
 
 		# return second_connected_mask
 
+	def __test_extract_contours(self, image):
+		non_zero_points = cv2.findNonZero(image)
+		end_point_image = cv2.cvtColor(image.copy(), cv2.COLOR_GRAY2BGR)
+
+		for point in non_zero_points:
+			# if count % 1000 == 0:
+			# 	print(count)
+			# count += 1
+			pt = (point[0][0], point[0][1])
+
+			if self.__is_end_point(pt, image):
+				end_point_image[pt[1]][pt[0]] = (0,0,255)
+				# cv2.circle(end_point_image, (pt[0], pt[1]), 1, (0,0,255), -1)
+
+		temp = end_point_image[:200, :200]
+		temp = cv2.resize(temp, None, fx=5, fy=5, interpolation = cv2.INTER_LINEAR)
+		cv2.imshow("temp", temp)
+
+		temp2 = image[:200, :200]
+		temp2 = cv2.resize(temp2, None, fx=5, fy=5, interpolation = cv2.INTER_LINEAR)
+		cv2.imshow("temp2", temp2)
+
+		cv2.imshow("end_point_image", end_point_image)
+		end_point_image = cv2.cvtColor(end_point_image, cv2.COLOR_BGR2GRAY)
+
+		return image
+
+	def __is_end_point(self, pt, image):
+		#don't check points near end
+		w, h = image.shape
+		if pt[0] < 2 or pt[0] > w - 2 or pt[1] < 2 or pt[1] > h - 2:
+			return 0
+
+		non_zero_neighbors = 0
+		prev = False
+		found = False
+		first = False
+
+		# top left
+		tl = (pt[0]-1, pt[1]-1)
+		if image[tl[1]][tl[0]] == 255:	# if pt is non zero
+			non_zero_neighbors += 1		# increment counter
+			prev = True					# check prev bool
+			first = True				# indicate tl is non zero for ml at the end
+
+		# top middle
+		tm = (pt[0], pt[1]-1)
+		if image[tm[1]][tm[0]] == 255:	# if pt is non zero
+			if prev:					# if prev pt was also non zero 
+				found = True			# 2 non zero neighbors found
+			
+			non_zero_neighbors += 1
+			prev = True
+		else:
+			prev = False
+
+		# top right
+		tr = (pt[0]+1, pt[1]-1)
+		if image[tr[1]][tr[0]] == 255:
+			if found:					# if 2 non zero neighbors already found	
+				return False
+
+			if non_zero_neighbors == 1:	# non zero neighbor has been found
+				if prev:
+					found = True		# other neighbor was adjacent so 2 non zero neighbors found
+				else:
+					return False 		# other neighbor was NOT adjacent
+
+			non_zero_neighbors += 1
+			prev = True
+		else:
+			prev = False
+
+		# mid right
+		mr = (pt[0]+1, pt[1])
+		if image[mr[1]][mr[0]] == 255:
+			if found:
+				return False
+
+			if non_zero_neighbors == 1:
+				if prev:
+					found = True	
+				else:
+					return False 
+
+			non_zero_neighbors += 1
+			prev = True
+		else:
+			prev = False
+
+		# bottom right
+		br = (pt[0]+1, pt[1]+1)
+		if image[br[1]][br[0]] == 255:
+			if found:
+				return False
+
+			if non_zero_neighbors == 1:
+				if prev:
+					found = True	
+				else:
+					return False 
+
+			non_zero_neighbors += 1
+			prev = True
+		else:
+			prev = False
+
+		# bottom mid
+		bm = (pt[0], pt[1]+1)
+		if image[bm[1]][bm[0]] == 255:
+			if found:
+				return False
+
+			if non_zero_neighbors == 1:
+				if prev:
+					found = True	
+				else:
+					return False 
+
+			non_zero_neighbors += 1
+			prev = True
+		else:
+			prev = False
+
+		# bottom left
+		bl = (pt[0]-1, pt[1]+1)
+		if image[bl[1]][bl[0]] == 255:
+			if found:
+				return False
+
+			if non_zero_neighbors == 1:
+				if prev:
+					found = True	
+				else:
+					return False 
+
+			non_zero_neighbors += 1
+			prev = True
+		else:
+			prev = False
+
+		# mid left
+		ml = (pt[0]-1, pt[1])
+		if image[ml[1]][ml[0]] == 255:
+			if found:
+				return False
+
+			if non_zero_neighbors == 1:
+				if prev or first:
+					found = True	
+				else:
+					return False 
+
+			non_zero_neighbors += 1
+		else:
+			prev = False
+
+		return found or non_zero_neighbors == 1
+
+	def __is_end_point2(self, point, non_zero_points):
+		pt = (point[0][0], point[0][1])
+
+		neighbors = [
+			(pt[0]-1, pt[1]-1),
+			(pt[0], pt[1]-1),
+			(pt[0]+1, pt[1]-1),
+			(pt[0]-1, pt[1]),
+			(pt[0]+1, pt[1]),
+			(pt[0]-1, pt[1]+1),
+			(pt[0], pt[1]+1),
+			(pt[0]+1, pt[1]+1),
+		]
+
+		non_zero_neighbors = list(filter(lambda x: x in non_zero_points, neighbors))
+
+		if len(non_zero_neighbors) == 1:
+			return True
+		elif len(non_zero_neighbors) == 2:
+			p1 = non_zero_neighbors[0]
+			p2 = non_zero_neighbors[1]
+
+			distance = math.sqrt(math.pow(p1[0]-p2[0], 2) + math.pow(p1[1]-p2[1], 2))
+
+			if distance == 1:
+				return True
+
+		return False
+
 	def __prepare_for_first_contour_connecting(self):
 		dilated_image = Helper.dilate_image(self.cv_image)
 		dilated_mask = Helper.convert_image_to_mask(dilated_image)
 		gray_denoised_image = cv2.fastNlMeansDenoising(dilated_mask, None, 5, 7, 21)
-		threshold_image = cv2.threshold(gray_denoised_image,225,255,cv2.THRESH_BINARY_INV)[1]
+		# threshold_image = cv2.threshold(gray_denoised_image,225,255,cv2.THRESH_BINARY_INV)[1]
+
+		threshold_image = cv2.adaptiveThreshold(gray_denoised_image,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2)
+
 		prepared_mask = cv2.bitwise_and(threshold_image, threshold_image, mask=self.image_masks.topo_mask)
 
 		return prepared_mask

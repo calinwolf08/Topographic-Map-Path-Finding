@@ -10,6 +10,9 @@ class Point:
 	def __str__(self):
 		return "(" + str(self.x) + ", " + str(self.y) + ")"
 
+	def __eq__(self, point):
+		return self.x == point.x and self.y == point.y
+
 class Helper:
 	resize_factor = 1
 

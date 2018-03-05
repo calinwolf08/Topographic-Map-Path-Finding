@@ -105,6 +105,15 @@ class Grid:
 
 		return copy
 
+	def add_boundary_to_image(self, img, boundary_points):
+		copy = img.copy()
+
+		for point in boundary_points:
+			pt = self.convert_grid_to_pixel_point(point)
+			cv2.circle(copy, (pt.x,pt.y), int(self.cell_width/2), (255,0,255), 2)
+
+		return copy
+
 	def add_heat_map_to_image(self, img):
 		copy = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
 
@@ -141,7 +150,7 @@ class UserSettings:
 		self.avoid_water = False
 		self.avoid_forrest = False
 		self.max_grade = 30
-		self.cell_width = 5
+		self.cell_width = 30
 
 	def __str__(self):
 		ret = "1) filename: " + (self.topo_map.filename if self.topo_map is not None else "None") + "\n"
@@ -257,8 +266,10 @@ class PathFinder:
 	max_grade = 100
 	max_cost = 1000
 
-	def __init__(self, user_settings):
+	def __init__(self, user_settings, previous = None):
 		self.user_settings = user_settings
+		self.previous = previous
+		self.boundary_points = None
 		self.grid = Grid(user_settings.cropped_img, user_settings.cell_width)
 
 	@classmethod
@@ -274,8 +285,8 @@ class PathFinder:
 		return path, path_img
 
 	def find_path(self):
-		print("start: " + str(self.user_settings.start))
-		print("end: " + str(self.user_settings.end))
+		print("pixel start: " + str(self.user_settings.start))
+		print("pixel end: " + str(self.user_settings.end))
 		self.grid_start = self.grid.convert_pixel_to_grid_point(self.user_settings.cropped_img.start)
 		self.grid_end = self.grid.convert_pixel_to_grid_point(self.user_settings.cropped_img.end)
 
@@ -293,9 +304,9 @@ class PathFinder:
 
 		count = 0
 
-		print("start: " + str(self.grid_start))
-		print("end: " + str(self.grid_end))
-		print(self.grid.grid_resolution * self.grid.grid_resolution)
+		print("grid start: " + str(self.grid_start))
+		print("grid end: " + str(self.grid_end))
+		print("total cells: " + str(self.grid.grid_resolution * self.grid.grid_resolution))
 
 		while len(open_nodes) > 0:
 			open_nodes.sort(key = lambda x: x.f, reverse=True)
@@ -316,7 +327,7 @@ class PathFinder:
 
 			count += 1
 
-			if count % 100 == 0:
+			if count % 250 == 0:
 				print("successors: " + str(len(successors)))
 				print("open nodes: " + str(len(open_nodes)))
 				print("closed nodes: " + str(len(closed_nodes)))
@@ -409,7 +420,19 @@ class PathFinder:
 
 		successors = [tl, tlr, tm, tr, trl, ml, mlt, mlb, mr, mrt, mrb, bl, blr, bm, br, brl]
 
-		return list(filter(lambda x: x is not None, successors))
+		return list(filter(lambda x: x is not None and self.__point_within_boundary(x), successors))
+
+	def __point_within_boundary(self, node):
+		if self.previous is None or self.previous.boundary_points is None:
+			return True
+
+		pixel_point = self.grid.convert_grid_to_pixel_point(node.coord)
+		previous_grid_point = self.previous.grid.convert_pixel_to_grid_point(pixel_point)
+
+		if previous_grid_point in self.previous.boundary_points:
+			return True
+
+		return False
 
 	def __are_equal_points(self, p1, p2):
 		return p1.x == p2.x and p1.y == p2.y
@@ -615,6 +638,57 @@ class PathFinder:
 			from_point = to_point
 
 		return path_img
+
+	def set_boundary_points(self, node, distance):
+		points = []
+		
+		cur_point = node.coord
+
+		while node.parent is not None:
+			parent = node.parent
+			next_point = parent.coord
+
+			direction = self.__get_direction_vector_to_point(cur_point, parent.coord)
+
+			while not self.__are_equal_points(cur_point, parent.coord):
+				self.__add_neighbor_points(cur_point, distance, points)
+
+				cur_point.x += direction.x
+				cur_point.y += direction.y
+
+			node = parent
+			cur_point = next_point 
+
+		self.__add_neighbor_points(node.coord, distance, points)
+
+		self.boundary_points = points
+
+	def __get_direction_vector_to_point(self, from_point, to_point):
+		direction = Point(to_point.x - from_point.x, to_point.y - from_point.y)
+
+		if abs(direction.x) >= 2 and abs(direction.y) >= 2:
+			factor = min(abs(direction.x), abs(direction.y))
+
+			direction.x = int(direction.x / factor)
+			direction.y = int(direction.y / factor)
+
+		return direction
+
+	def __add_neighbor_points(self, point, distance, points):
+		for x in range(point.x - distance, point.x + distance + 1):
+			for y in range(point.y - distance, point.y + distance + 1):
+				cur_point = Point(x,y)
+				
+				if self.__is_point_in_grid(cur_point) and cur_point not in points:
+					points.append(cur_point)
+
+
+
+
+
+
+
+
 
 
 

@@ -90,15 +90,16 @@ class UserInterface:
 
 	def start(self):
 		self.user_settings = UserSettings()
+		self.path_finder = None
 		self.set_user_settings()
+
 		self.interface_loop()
 
 	def interface_loop(self):
 		run = True
 
 		while run:
-			print(str(self.user_settings) + "\n")
-
+			print("\n" + str(self.user_settings) + "\n")
 			command = input("Enter # to change a setting, r to run path finding, s to show images, q to quit\n")
 			
 			if command == "1":
@@ -113,31 +114,47 @@ class UserInterface:
 				self.user_settings.max_grade = self.get_max_grade()
 			elif command == "6":
 				self.user_settings.cell_width = self.get_cell_width()
+			elif command == "s":
+				self.show_images()
 			elif command == "r":
-				self.run()
+				self.path_finder = None
+				start = time.time()
+				self.run(self.user_settings.cell_width)
+				end = time.time()
+				print("total path finding time: " + str(end - start))
 			elif command == "q":
 				run = False
 			else:
 				print("command invalid")
 
-	def run(self):
-		path_finder = PathFinder(self.user_settings)
+	def run(self, cell_width):
+		self.user_settings.cell_width = cell_width
+		self.path_finder = PathFinder(self.user_settings, previous = self.path_finder)
 
 		start = time.time()
-		path = path_finder.find_path()
+		self.path = self.path_finder.find_path()
 		end = time.time()
 
 		print("path finding time: " + str(end - start))
 
-		if path is None:
+		if self.path is None:
 			print("no path found")
 		else:
-			path_img = path_finder.draw_path(path)
-			cv2.imshow("contours", self.user_settings.cropped_img.contours)
-			# cv2.imshow("path" + str(time.time()), path_img)
-			image = cv2.cvtColor(self.user_settings.cropped_img.contours, cv2.COLOR_GRAY2BGR)
-			grid_img = path_finder.grid.add_grid_to_image(path_img, 1)
-			cv2.imshow("grid" + str(time.time()), grid_img)
+			self.path_finder.set_boundary_points(self.path, distance = 1)
+
+		if cell_width > 5:
+			self.run(max(cell_width - 10, 5))
+
+	def show_images(self):
+		cv2.imshow("image" + str(time.time()), self.user_settings.cropped_img.cv_image)
+		cv2.imshow("contours" + str(time.time()), self.user_settings.cropped_img.contours)
+
+		path_img = self.path_finder.draw_path(self.path)
+		cv2.imshow("path" + str(time.time()), path_img)
+
+		grid_img = self.path_finder.grid.add_grid_to_image(path_img, 1)
+		boundary_img = self.path_finder.grid.add_boundary_to_image(grid_img, self.path_finder.boundary_points)
+		cv2.imshow("boundary" + str(time.time()), boundary_img)
 
 	def set_user_settings(self):
 		self.filename = self.get_filename()
@@ -151,7 +168,7 @@ class UserInterface:
 			filename = input("Enter the topographic map filename: ")
 
 		return filename
-	
+
 	def get_max_grade(self):
 		has_new_grade = False
 		grade = None
