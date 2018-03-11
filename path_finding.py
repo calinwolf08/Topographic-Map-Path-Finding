@@ -76,13 +76,13 @@ class Grid:
 		row, col, chan = copy.shape
 
 		i = 0
-		while i < row - self.cell_width:
-			cv2.line(copy,(0,i),(col,i),(255,0,0),lineThickness)
+		while i <= row - self.cell_width:
+			cv2.line(copy,(0,i),(col,i),(0,255,0),lineThickness)
 			i += self.cell_width
 
 		j = 0
-		while j < col - self.cell_width:
-			cv2.line(copy,(j,0),(j,row),(255,0,0),lineThickness)
+		while j <= col - self.cell_width:
+			cv2.line(copy,(j,0),(j,row),(0,255,0),lineThickness)
 			j += self.cell_width
 
 		return copy
@@ -124,7 +124,7 @@ class Grid:
 
 				cell = self.get_cell(Point(c,r))
 
-				cv2.circle(copy, (x,y), int(self.cell_width/1), (abs(1-cell.density) * 120,255,255), -1)
+				cv2.circle(copy, (x,y), int(self.cell_width/2), (abs(1-cell.density) * 70,255,255), -1)
 
 		copy = cv2.cvtColor(copy, cv2.COLOR_HSV2BGR)
 
@@ -173,7 +173,7 @@ class UserSettings:
 		self.topo_map = TopographicMap(filename)
 
 	def find_start_end_points(self):
-		self.temp_img = self.topo_map.image.copy()
+		self.temp_img = self.topo_map.image.copy()[:][1500:]
 
 		self.start = Point(-1, -1)
 		self.end = Point(-1, -1)
@@ -239,8 +239,8 @@ class UserSettings:
 		height *= Helper.resize_factor
 
 		# scale image by resize factor
-		img = cv2.resize(img, None, fx=Helper.resize_factor, fy=Helper.resize_factor, 
-			interpolation = cv2.INTER_LINEAR)
+		# img = cv2.resize(img, None, fx=Helper.resize_factor, fy=Helper.resize_factor, 
+		# 	interpolation = cv2.INTER_LINEAR)
 		
 		# init cropped_img for extracting contours, etc.		
 		self.cropped_img = CroppedImage(img)
@@ -253,12 +253,12 @@ class UserSettings:
 		if event == 1:
 			if self.start.x < 0:
 				cv2.circle(self.temp_img, (x,y), 5, (0,255,0), 2)
-				self.start.x = x
-				self.start.y = y
+				self.start.x = x 
+				self.start.y = y + 1500
 			elif self.end.x < 0:
 				cv2.circle(self.temp_img, (x,y), 5, (0,0,255), 2)
 				self.end.x = x
-				self.end.y = y
+				self.end.y = y + 1500
 
 class PathFinder:
 	step_cost = 1
@@ -285,8 +285,8 @@ class PathFinder:
 		return path, path_img
 
 	def find_path(self):
-		print("pixel start: " + str(self.user_settings.start))
-		print("pixel end: " + str(self.user_settings.end))
+		# print("pixel start: " + str(self.user_settings.start))
+		# print("pixel end: " + str(self.user_settings.end))
 		self.grid_start = self.grid.convert_pixel_to_grid_point(self.user_settings.cropped_img.start)
 		self.grid_end = self.grid.convert_pixel_to_grid_point(self.user_settings.cropped_img.end)
 
@@ -302,11 +302,11 @@ class PathFinder:
 		open_nodes = [Node(self.grid_start)]
 		closed_nodes = []
 
-		count = 0
+		# count = 0
 
-		print("grid start: " + str(self.grid_start))
-		print("grid end: " + str(self.grid_end))
-		print("total cells: " + str(self.grid.grid_resolution * self.grid.grid_resolution))
+		# print("grid start: " + str(self.grid_start))
+		# print("grid end: " + str(self.grid_end))
+		# print("total cells: " + str(self.grid.grid_resolution * self.grid.grid_resolution))
 
 		while len(open_nodes) > 0:
 			open_nodes.sort(key = lambda x: x.f, reverse=True)
@@ -325,13 +325,13 @@ class PathFinder:
 
 			closed_nodes.append(cur_node)
 
-			count += 1
+			# count += 1
 
-			if count % 250 == 0:
-				print("successors: " + str(len(successors)))
-				print("open nodes: " + str(len(open_nodes)))
-				print("closed nodes: " + str(len(closed_nodes)))
-				print("---------")
+			# if count % 250 == 0:
+			# 	print("successors: " + str(len(successors)))
+			# 	print("open nodes: " + str(len(open_nodes)))
+			# 	print("closed nodes: " + str(len(closed_nodes)))
+			# 	print("---------")
 
 		return None
 
@@ -666,8 +666,8 @@ class PathFinder:
 	def __get_direction_vector_to_point(self, from_point, to_point):
 		direction = Point(to_point.x - from_point.x, to_point.y - from_point.y)
 
-		if abs(direction.x) >= 2 and abs(direction.y) >= 2:
-			factor = min(abs(direction.x), abs(direction.y))
+		if (abs(direction.x) >= 2 and abs(direction.y) >= 2) or abs(direction.x) > 2 or abs(direction.y) > 2:
+			factor = max(min(abs(direction.x), abs(direction.y)), 1)
 
 			direction.x = int(direction.x / factor)
 			direction.y = int(direction.y / factor)

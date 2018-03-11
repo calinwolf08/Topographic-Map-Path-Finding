@@ -91,6 +91,7 @@ class UserInterface:
 	def start(self):
 		self.user_settings = UserSettings()
 		self.path_finder = None
+		self.filename = self.get_filename()
 		self.set_user_settings()
 
 		self.interface_loop()
@@ -104,6 +105,7 @@ class UserInterface:
 			
 			if command == "1":
 				self.filename = self.get_filename()
+				self.set_user_settings()
 			elif command == "2":
 				self.user_settings.find_start_end_points()
 			elif command == "3":
@@ -119,7 +121,7 @@ class UserInterface:
 			elif command == "r":
 				self.path_finder = None
 				start = time.time()
-				self.run(self.user_settings.cell_width)
+				self.run()
 				end = time.time()
 				print("total path finding time: " + str(end - start))
 			elif command == "q":
@@ -127,37 +129,49 @@ class UserInterface:
 			else:
 				print("command invalid")
 
-	def run(self, cell_width):
-		self.user_settings.cell_width = cell_width
+	def run(self):
+		self.find_path_with_resolution(30, 2)
+		self.find_path_with_resolution(20, 2)
+		self.find_path_with_resolution(10, 1)
+		self.find_path_with_resolution(5, 1)
+		
+
+	def find_path_with_resolution(self, resolution, boundary_distance):
+		self.user_settings.cell_width = resolution
 		self.path_finder = PathFinder(self.user_settings, previous = self.path_finder)
 
 		start = time.time()
 		self.path = self.path_finder.find_path()
 		end = time.time()
 
-		print("path finding time: " + str(end - start))
+		print("path finding time (" + str(resolution) + "):" + str(end - start))
 
 		if self.path is None:
 			print("no path found")
 		else:
-			self.path_finder.set_boundary_points(self.path, distance = 1)
-
-		if cell_width > 5:
-			self.run(max(cell_width - 10, 5))
+			self.path_finder.set_boundary_points(self.path, distance = boundary_distance)
+			# self.show_images()
 
 	def show_images(self):
-		cv2.imshow("image" + str(time.time()), self.user_settings.cropped_img.cv_image)
-		cv2.imshow("contours" + str(time.time()), self.user_settings.cropped_img.contours)
+		if self.path_finder is None:
+			cv2.imshow("image" + str(time.time()), self.user_settings.cropped_img.cv_image)
+			cv2.imshow("contours" + str(time.time()), self.user_settings.cropped_img.contours)
+			# self.user_settings.cropped_img.image_masks.show_masks()
+		else:
+			path_img = self.path_finder.draw_path(self.path)
+			cv2.imshow("path" + str(time.time()), path_img)
 
-		path_img = self.path_finder.draw_path(self.path)
-		cv2.imshow("path" + str(time.time()), path_img)
+			# image = self.user_settings.cropped_img.contours.copy()
+			# image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+			# grid_img = self.path_finder.grid.add_grid_to_image(image, 1)
+			# cv2.imshow("grid" + str(time.time()), grid_img)
+			# boundary_img = self.path_finder.grid.add_boundary_to_image(grid_img, self.path_finder.boundary_points)
+			# cv2.imshow("boundary" + str(time.time()), boundary_img)
 
-		grid_img = self.path_finder.grid.add_grid_to_image(path_img, 1)
-		boundary_img = self.path_finder.grid.add_boundary_to_image(grid_img, self.path_finder.boundary_points)
-		cv2.imshow("boundary" + str(time.time()), boundary_img)
+			# heat_img = self.path_finder.grid.add_heat_map_to_image(path_img)
+			# cv2.imshow("heat" + str(time.time()), heat_img)
 
 	def set_user_settings(self):
-		self.filename = self.get_filename()
 		self.user_settings.set_topo_map(self.filename)
 		self.user_settings.find_cropped_image()
 
