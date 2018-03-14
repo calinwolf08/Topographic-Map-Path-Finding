@@ -116,6 +116,10 @@ class UserInterface:
 				self.user_settings.max_grade = self.get_max_grade()
 			elif command == "6":
 				self.user_settings.cell_width = self.get_cell_width()
+			elif command == "7":
+				self.user_settings.grade_in_direction = not self.user_settings.grade_in_direction
+			elif command == "8":
+				self.user_settings.single_step = not self.user_settings.single_step
 			elif command == "s":
 				self.show_images()
 			elif command == "r":
@@ -124,16 +128,25 @@ class UserInterface:
 				self.run()
 				end = time.time()
 				print("total path finding time: " + str(end - start))
+			elif command == "rs":
+				self.path_finder = None
+				start = time.time()
+				self.run()
+				end = time.time()
+				print("total path finding time: " + str(end - start))
+				self.show_images()
 			elif command == "q":
 				run = False
 			else:
 				print("command invalid")
 
 	def run(self):
-		self.find_path_with_resolution(30, 2)
-		self.find_path_with_resolution(20, 2)
-		self.find_path_with_resolution(10, 1)
-		self.find_path_with_resolution(5, 1)
+		self.user_settings.grade_in_direction = False
+		self.find_path_with_resolution(30, 1)
+		# self.find_path_with_resolution(30, 3)
+		# self.find_path_with_resolution(20, 2)
+		# self.find_path_with_resolution(10, 1)
+		# self.find_path_with_resolution(5, 1)
 		
 
 	def find_path_with_resolution(self, resolution, boundary_distance):
@@ -159,17 +172,21 @@ class UserInterface:
 			# self.user_settings.cropped_img.image_masks.show_masks()
 		else:
 			path_img = self.path_finder.draw_path(self.path)
-			cv2.imshow("path" + str(time.time()), path_img)
 
-			# image = self.user_settings.cropped_img.contours.copy()
-			# image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-			# grid_img = self.path_finder.grid.add_grid_to_image(image, 1)
-			# cv2.imshow("grid" + str(time.time()), grid_img)
+			image = self.user_settings.cropped_img.contours.copy()
+			image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+			grid_img = self.path_finder.grid.add_grid_to_image(image, 1)
+			grid_img2 = self.path_finder.grid.add_grid_to_image(path_img, 1)
 			# boundary_img = self.path_finder.grid.add_boundary_to_image(grid_img, self.path_finder.boundary_points)
 			# cv2.imshow("boundary" + str(time.time()), boundary_img)
 
-			# heat_img = self.path_finder.grid.add_heat_map_to_image(path_img)
-			# cv2.imshow("heat" + str(time.time()), heat_img)
+			heat_img = self.path_finder.grid.add_heat_map_to_image(path_img)
+
+			cv2.imshow("image" + str(time.time()), image)
+			cv2.imshow("grid" + str(time.time()), grid_img)
+			cv2.imshow("grid2" + str(time.time()), grid_img2)
+			cv2.imshow("heat" + str(time.time()), heat_img)
+			cv2.imshow("path" + str(time.time()), path_img)
 
 	def set_user_settings(self):
 		self.user_settings.set_topo_map(self.filename)

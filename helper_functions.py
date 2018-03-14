@@ -13,6 +13,9 @@ class Point:
 	def __eq__(self, point):
 		return self.x == point.x and self.y == point.y
 
+	def __add__(self, point):
+		return Point(self.x + point.x, self.y + point.y)
+
 class Helper:
 	resize_factor = 1
 
@@ -67,7 +70,17 @@ class Helper:
 
 	@staticmethod
 	def convert_angle_to_grade(angle):
-		tangent = math.tan(angle)
+		theta = math.radians(angle)
+		tangent = math.tan(theta)
+
 		grade = tangent * 100
 
 		return grade
+
+	@staticmethod
+	def convert_grade_to_angle(grade):
+		x = grade / 100
+		theta = math.atan(x)
+		angle = math.degrees(theta)
+
+		return angle

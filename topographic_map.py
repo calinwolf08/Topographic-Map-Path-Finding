@@ -98,7 +98,7 @@ class ImageData:
 		# cv2.imshow("blah", img)
 		# print(nums)
 
-		return 5280 / 1650# hardcoded estimatem, ft per mile / pixel per mile = feet per pixel
+		return 5280 / 790# hardcoded estimatem, ft per mile / pixel per mile = feet per pixel
 
 	def __find_candidates_for_id_and_index(self, word_list, id_word, offset):
 		candidates = []

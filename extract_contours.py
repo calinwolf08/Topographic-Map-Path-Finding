@@ -334,18 +334,20 @@ class ContourExtractor:
 		gray_denoised_image = cv2.fastNlMeansDenoising(dilated_mask, None, 5, 7, 21)
 		# threshold_image = cv2.threshold(gray_denoised_image,225,255,cv2.THRESH_BINARY_INV)[1]
 		threshold_image = cv2.adaptiveThreshold(gray_denoised_image,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2)
-		cv2.imshow("blah", threshold_image)
+		# cv2.imshow("blah", threshold_image)
 
 		prepared_mask = cv2.bitwise_and(threshold_image, threshold_image, mask=self.image_masks.topo_mask)
 
 		return prepared_mask
 
 	def __prepare_for_second_contour_connecting(self, mask):
-		skeleton_mask = self.__skeletonize_mask(mask)
+		# skeleton_mask = self.__skeletonize_mask(mask)
 		# reduced_mask = Helper.reduce_image_contours(skeleton_mask, 1)
-		# dilated_mask = Helper.dilate_image(reduced_mask)
-		dilated_mask = Helper.dilate_image(skeleton_mask)
-		cv2.imshow("blah2", dilated_mask)
+		reduced_mask = Helper.reduce_image_contours(mask, 1)
+		# dilated_mask = Helper.dilate_image(reduced_mask, array=(2,2))
+		dilated_mask = Helper.dilate_image(reduced_mask)
+		# dilated_mask = Helper.dilate_image(skeleton_mask)
+		# cv2.imshow("blah2", dilated_mask)
 
 		return dilated_mask
 

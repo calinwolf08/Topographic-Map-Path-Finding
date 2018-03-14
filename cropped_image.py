@@ -14,7 +14,7 @@ class CroppedImage:
 
 		self.start = Point(-1, -1)
 		self.end = Point(-1, -1)
-
+		
 	@property
 	def image_masks(self):
 		if self._image_masks is None:
