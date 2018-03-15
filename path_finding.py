@@ -1,146 +1,12 @@
 import cv2
 import math
+import operator
 
 from helper_functions import Point, Helper
 from topographic_map import TopographicMap
 from cropped_image import CroppedImage
-
-class Cell:
-	def __init__(self):
-		self.density = 0
-		self.water_density = 0
-		self.forrest_density = 0
-
-class Grid:
-	def __init__(self, cropped_img, cell_width):
-		self.cropped_img = cropped_img
-		self.cell_width = cell_width
-
-		rows, cols = self.cropped_img.image_masks.topo_mask.shape
-		self.grid_resolution = int(rows / self.cell_width)
-		self.array = [[Cell() for x in range(self.grid_resolution)] for y in range(self.grid_resolution)]
-		self.max_density = 0
-
-		self.__initialize_array()
-
-	def get_cell(self, point):
-		if point.x >= 0 and point.x < len(self.array):
-			if point.y >= 00 and point.y < len(self.array[point.x]):
-				return self.array[point.x][point.y]		
-
-		print("here: " + str(len(self.array)))
-		return None
-
-	def convert_pixel_to_grid_point(self, point):
-		x = int(point.x / self.cell_width)
-		y = int(point.y / self.cell_width)
-
-		return Point(x,y)
-
-	def convert_grid_to_pixel_point(self, point):
-		x = (point.x * self.cell_width) + int(self.cell_width/2)
-		y = point.y * self.cell_width + int(self.cell_width/2)
-
-		return Point(x,y)
-
-	def __initialize_array(self):
-			for col in range(self.grid_resolution):
-				for row in range(self.grid_resolution):
-					self.__initialize_cell_densities(Point(col, row))
-
-	def __initialize_cell_densities(self, point):
-		cell = self.get_cell(point)
-
-		cell.density = self.__get_image_density_at_pixel(point, self.cropped_img.contours)
-
-		if cell.density > self.max_density:
-			self.max_density = cell.density
-
-		cell.water_density = self.__get_image_density_at_pixel(point, self.cropped_img.image_masks.blue_mask)
-		cell.forrest_density = self.__get_image_density_at_pixel(point, self.cropped_img.image_masks.green_mask)
-
-	def __get_image_density_at_pixel(self, point, mask):
-		cell_image = self.__get_cell_covered_image(point, mask)
-
-		non_zero_pixels = cv2.countNonZero(cell_image)
-		total_pixels = self.cell_width * self.cell_width
-
-		return non_zero_pixels / total_pixels
-
-	def __get_cell_covered_image(self, point, mask):
-		minY = point.y * self.cell_width
-		maxY = minY + self.cell_width
-		minX = point.x * self.cell_width
-		maxX = minX + self.cell_width
-
-		cell_image = mask[minY:maxY, minX:maxX]
-
-		return cell_image
-
-	def add_grid_to_image(self, img, lineThickness):
-		copy = img.copy()
-		row, col, chan = copy.shape
-
-		i = 0
-		while i <= row - self.cell_width:
-			cv2.line(copy,(0,i),(col,i),(0,255,0),lineThickness)
-			i += self.cell_width
-
-		j = 0
-		while j <= col - self.cell_width:
-			cv2.line(copy,(j,0),(j,row),(0,255,0),lineThickness)
-			j += self.cell_width
-
-		return copy
-
-	def add_density_to_image(self, img):
-		copy = img.copy()
-
-		for c in range(self.grid_resolution):
-			for r in range(self.grid_resolution):
-				x = (c * self.cell_width) + int(self.cell_width / 2)
-				y = (r * self.cell_width) + int(self.cell_width / 2)
-
-				cell = self.get_cell(Point(c,r))
-
-				if cell.forrest_density > 0:
-					cv2.circle(copy, (x,y), int(self.cell_width/2), (0,255,0), 1)
-
-				if cell.water_density > 0:
-					cv2.circle(copy, (x,y), int(self.cell_width/2), (255,0,0), 1)
-
-		return copy
-
-	def add_boundary_to_image(self, img, boundary_points):
-		copy = img.copy()
-
-		for point in boundary_points:
-			pt = self.convert_grid_to_pixel_point(point)
-			cv2.circle(copy, (pt.x,pt.y), int(self.cell_width/2), (255,0,255), 2)
-
-		return copy
-
-	def add_heat_map_to_image(self, img):
-		copy = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-
-		for c in range(self.grid_resolution):
-			for r in range(self.grid_resolution):
-				x = (c * self.cell_width) + int(self.cell_width / 2)
-				y = (r * self.cell_width) + int(self.cell_width / 2)
-
-				cell = self.get_cell(Point(c,r))
-
-				density = cell.density / self.max_density
-				# multiplier = 1 - density
-				# cv2.circle(copy, (x,y), int(self.cell_width/2), (int(122 * multiplier),255,255), 2)
-				if density > 0.5:
-					cv2.circle(copy, (x,y), int(self.cell_width/2), (0,255,255), 2)
-				else:
-					cv2.circle(copy, (x,y), int(self.cell_width/2), (122,255,255), 2)
-
-		copy = cv2.cvtColor(copy, cv2.COLOR_HSV2BGR)
-
-		return copy
+from grid import Grid, DensityGrid, GradeGrid
+from user_settings import UserSettings, NodeMethod
 
 class Node:
 	def __init__(self, point, f=0.0, g=0.0, h=0.0, parent=None, grade = None):
@@ -151,138 +17,24 @@ class Node:
 		self.parent = parent
 		self.grade = grade
 
-class UserSettings:
+		self.num_contours = 0
+		self.avg_distance = 0
+		self.min_distance = 0
 
-	def __init__(self):
-		self.topo_map = None
+	def __eq__(self, other):
+		return self.coord == other.coord
 
-		self.start = Point(350, 220)
-		self.end = Point(850, 700)
-		# self.end = Point(450, 320)
-		self.cropped_img = None
-
-		self.avoid_water = False
-		self.avoid_forrest = False
-		self.max_grade = 30
-		self.cell_width = 30
-		self.grade_in_direction = True
-		self.single_step = True
-
-	def __str__(self):
-		ret = "1) filename: " + (self.topo_map.filename if self.topo_map is not None else "None") + "\n"
-		ret += "2) start/end: " + str(self.start) + " --> " + str(self.end) + "\n"
-		ret += "3) avoid water: " + str(self.avoid_water) + "\n"
-		ret += "4) avoid terrain: " + str(self.avoid_forrest) + "\n"
-		ret += "5) max grade: " + str(self.max_grade) + "\n"
-		ret += "6) path precision (grid width): " + str(self.cell_width) + "\n"
-		ret += "7) grade in direction: " + str(self.grade_in_direction) + "\n"
-		ret += "8) single step: " + str(self.single_step)
-
-		return ret
-
-	@classmethod
-	def initialized_from_filename(cls, filename):
-		user_settings = cls()
-		user_settings.set_topo_map(filename)
-
-		return user_settings
-
-	def set_topo_map(self, filename):
-		self.topo_map = TopographicMap(filename)
-
-	def find_start_end_points(self):
-		self.temp_img = self.topo_map.image.copy()[:][1500:]
-
-		self.start = Point(-1, -1)
-		self.end = Point(-1, -1)
-
-		cv2.namedWindow("image")
-		cv2.setMouseCallback("image", self.__click_image)
-		cv2.imshow("image", self.temp_img)
-
-		while(self.start.x < 0 or self.end.x < 0):
-			k = cv2.waitKey(1000) & 0xFF
-			cv2.imshow("image", self.temp_img)
-
-			if k == ord('q') or k == ord(' '):
-				break
-
-		cv2.imshow("image", self.temp_img)
-		# print(self.start)
-		# print(self.end)
-
-		# self.start = Point(1385, 620)
-		# self.end = Point(1525, 462)
-
-		# self.start = Point(400, 400)
-		# self.end = Point(600, 600)
-		self.find_cropped_image()
-
-	def get_feet_per_pixel(self):
-		return self.topo_map.image_data.feet_per_pixel
-
-	def get_contour_interval_dist(self):
-		return self.topo_map.image_data.contour_interval_dist
-
-	def find_cropped_image(self, padding = 100):
-		# get max of width and height of points
-		dist = max(abs(self.start.x - self.end.x), abs(self.start.y - self.end.y))
-
-		# calculate padding needed for each point  
-		yPad = int((dist - abs(self.start.y - self.end.y)) / 2) + padding
-		xPad = int((dist - abs(self.start.x - self.end.x)) / 2) + padding 
-
-		# crop image around start and end points with padding
-		minY = min(self.start.y, self.end.y) - yPad
-		maxY = max(self.start.y, self.end.y) + yPad
-
-		minX = min(self.start.x, self.end.x) - xPad
-		maxX = max(self.start.x, self.end.x) + xPad
-
-		img = self.topo_map.image[minY : maxY, minX : maxX]
-
-		# calculate start/end points for cropped image
-		# width/height of cropped image
-		width = maxX - minX
-		height = maxY - minY
-
-		# ratio of start/end points to cropped image size
-		sxFactor = ((self.start.x - minX) / width)
-		syFactor = ((self.start.y - minY) / height)
-		exFactor = ((self.end.x - minX) / width)
-		eyFactor = ((self.end.y - minY) / height)
-
-		# width/height of cropped and rescaled image
-		width *= Helper.resize_factor
-		height *= Helper.resize_factor
-
-		# scale image by resize factor
-		# img = cv2.resize(img, None, fx=Helper.resize_factor, fy=Helper.resize_factor, 
-		# 	interpolation = cv2.INTER_LINEAR)
-		
-		# init cropped_img for extracting contours, etc.		
-		self.cropped_img = CroppedImage(img)
-
-		# use ratios to find scaled start/end points 
-		self.cropped_img.start = Point(int(sxFactor * width), int(syFactor * height))
-		self.cropped_img.end = Point(int(exFactor * width), int(eyFactor * height))
-
-	def __click_image(self, event, x, y, flags, param):
-		if event == 1:
-			if self.start.x < 0:
-				cv2.circle(self.temp_img, (x,y), 5, (0,255,0), 2)
-				self.start.x = x 
-				self.start.y = y + 1500
-			elif self.end.x < 0:
-				cv2.circle(self.temp_img, (x,y), 5, (0,0,255), 2)
-				self.end.x = x
-				self.end.y = y + 1500
+	def __hash__(self):
+		return hash((self.coord.x, self.coord.y))
 
 class PathFinder:
 	step_cost = 1
 	diag_step_cost = math.sqrt(2)
-	max_grade = 100
 	max_cost = 10000
+
+	nearest_grade = 1
+	single_step = 2
+	nearest_density_cell = 3
 
 	def __init__(self, user_settings, previous = None):
 		self.user_settings = user_settings
@@ -290,7 +42,9 @@ class PathFinder:
 		self.boundary_points = None
 		self.min_pixel_dist = self.__get_min_contour_dist()
 
-		self.grid = Grid(user_settings.cropped_img, user_settings.cell_width)
+		self.grid = DensityGrid(user_settings.cropped_img, user_settings.cell_width)
+		# self.grade_grid = GradeGrid(user_settings.cropped_img, user_settings.cell_width, user_settings.max_grade, self.min_pixel_dist)
+		self.grade_grid = GradeGrid(user_settings.cropped_img, self.min_pixel_dist, user_settings.max_grade, self.min_pixel_dist)
 
 	@classmethod
 	def run_from_user_settings(cls, user_settings):
@@ -311,78 +65,89 @@ class PathFinder:
 
 		return min_pixel_dist
 
+	def __convert_pixel_points(self, points, on_nearest_grade = False):
+		converted_points = []
+
+		if (self.user_settings.node_method == NodeMethod.nearest_grade) == on_nearest_grade:
+			for p in points:
+				converted_point = self.grid.convert_pixel_to_grid_point(p)
+				converted_points.append(converted_point)
+		else:
+			converted_points = points
+
+		return converted_points
+
 	def find_path(self):
 		# print("pixel start: " + str(self.user_settings.start))
 		# print("pixel end: " + str(self.user_settings.end))
 		# self.grid_start = self.grid.convert_pixel_to_grid_point(self.user_settings.cropped_img.start)
 		# self.grid_end = self.grid.convert_pixel_to_grid_point(self.user_settings.cropped_img.end)
 
-		if self.user_settings.grade_in_direction:
-			self.grid_start = self.user_settings.cropped_img.start
-			self.grid_end = self.user_settings.cropped_img.end
-		else:
-			self.grid_start = self.grid.convert_pixel_to_grid_point(self.user_settings.cropped_img.start)
-			self.grid_end = self.grid.convert_pixel_to_grid_point(self.user_settings.cropped_img.end)
+		points = self.__convert_pixel_points([self.user_settings.cropped_img.start, self.user_settings.cropped_img.end])
+		self.grid_start = points[0]
+		self.grid_end = points[1]
 
 		return self.__calculate_path()
 
 	def find_path_from_pixel_coords(self, start_point, end_point):
-		if self.user_settings.grade_in_direction:
-			self.grid_start = self.user_settings.cropped_img.start
-			self.grid_end = self.user_settings.cropped_img.end
-		else:
-			self.grid_start = self.grid.convert_pixel_to_grid_point(self.user_settings.cropped_img.start)
-			self.grid_end = self.grid.convert_pixel_to_grid_point(self.user_settings.cropped_img.end)
+		points = self.__convert_pixel_points([self.user_settings.cropped_img.start, self.user_settings.cropped_img.end])
+		self.grid_start = points[0]
+		self.grid_end = points[1]
 
 		return self.__calculate_path()
 
 	def __calculate_path(self):
-		open_nodes = [Node(self.grid_start)]
-		closed_nodes = []
+		first_node = Node(self.grid_start)
+
+		open_nodes = {first_node: first_node.f}
+		closed_nodes = {}
 
 		count = 0
 
+		print("------")
 		print("grid start: " + str(self.grid_start))
 		print("grid end: " + str(self.grid_end))
-		print("total cells: " + str(self.grid.grid_resolution * self.grid.grid_resolution))
-
+		# print("total cells: " + str(self.grid.resolution_x * self.grid.resolution_y))
 		while len(open_nodes) > 0:
-			open_nodes.sort(key = lambda x: x.f, reverse=True)
-			cur_node = open_nodes.pop()
+			cur_node = self.__get_minimum_node_key(open_nodes)
+			open_nodes.pop(cur_node)
 			successors = self.__generate_successor_nodes(cur_node)
 
 			for successor in successors:
-				if self.user_settings.grade_in_direction:
-					cur_point = self.grid.convert_pixel_to_grid_point(successor.coord)
-					end_point = self.grid.convert_pixel_to_grid_point(self.grid_end)
-				else:
-					cur_point = successor.coord
-					end_point = self.grid_end
-				
+				points = self.__convert_pixel_points([successor.coord, self.grid_end], on_nearest_grade = True)
+				cur_point = points[0]
+				end_point = points[1]
+
 				if cur_point == end_point:
-					print("at end: " + str(cur_point))
+					# print("reached end: " + str(cur_point))
 					return successor
 
 				self.__calculate_heuristic(cur_node, successor, self.grid_end)
 
 				if not self.__position_already_reached_with_lower_heuristic(successor, open_nodes) and \
 				not self.__position_already_reached_with_lower_heuristic(successor, closed_nodes):
-					open_nodes.append(successor)
+					open_nodes[successor] = successor.f
 
-			closed_nodes.append(cur_node)
-
+			closed_nodes[cur_node] = cur_node.f
 			count += 1
 
-			if count % 5 == 0:
+			if count % 500 == 0:
+				print(count)
 				print("current place: " + str(self.grid.convert_pixel_to_grid_point(cur_node.coord)))
 				print("end_point: " + str(end_point))
 				print("distance: " + str(self.__get_distance_between_points(cur_node.coord, self.grid_end)))
-			# 	print("successors: " + str(len(successors)))
-			# 	print("open nodes: " + str(len(open_nodes)))
-			# 	print("closed nodes: " + str(len(closed_nodes)))
+				print("successors: " + str(len(successors)))
+				print("open nodes: " + str(len(open_nodes)))
+				print("closed nodes: " + str(len(closed_nodes)))
 				print("---------")
 
 		return None
+
+	def __get_minimum_node_key(self, open_nodes):
+		sorted_nodes = sorted(open_nodes.items(), key=operator.itemgetter(1), reverse=True)
+		minimum_node_key = sorted_nodes.pop()[0]
+
+		return minimum_node_key
 
 	def __generate_successor_nodes_original(self, cur_node):
 		point = cur_node.coord
@@ -403,14 +168,14 @@ class PathFinder:
 
 			y = point.y + 1
 
-			if y < self.grid.grid_resolution:
+			if y < self.grid.resolution_y:
 				lb = Node(Point(x, y), parent=cur_node)
 				successors.append(lb)
 
 		# successors to the right
 		x = point.x + 1
 		
-		if x < self.grid.grid_resolution:
+		if x < self.grid.resolution_x:
 			rm = Node(Point(x, point.y), parent=cur_node)
 			successors.append(rm)
 
@@ -422,14 +187,14 @@ class PathFinder:
 
 			y = point.y + 1
 
-			if y < self.grid.grid_resolution:
+			if y < self.grid.resolution_y:
 				rb = Node(Point(x, y), parent=cur_node)
 				successors.append(rb)
 
 		# top middle
 		y = point.y + 1
 
-		if y < self.grid.grid_resolution:
+		if y < self.grid.resolution_y:
 			mb = Node(Point(point.x, y), parent=cur_node)
 			successors.append(mb)
 
@@ -469,15 +234,14 @@ class PathFinder:
 		all_directions = [tl, tlr, tm, tr, trl, ml, mlt, mlb, mr, mrt, mrb, bl, blr, bm, br, brl]
 		directions = [tl, tm, tr, ml, mr, bl, bm, br]
 
-		if self.user_settings.grade_in_direction:
-			successors = list(map(lambda x: self.__get_node_by_grade_in_direction(cur_node, x), all_directions))
-			# successors = list(map(lambda x: self.__get_node_by_grade_in_direction(cur_node, x), directions))
-		elif self.user_settings.single_step:
-			successors = list(map(lambda x: self.__get_node_single_step_in_direction(cur_node, x), all_directions))
-			# successors = list(map(lambda x: self.__get_node_single_step_in_direction(cur_node, x), directions))
-		else:
-			successors = list(map(lambda x: self.__get_node_by_nearest_contour_in_direction(cur_node, x), all_directions))
-			# successors = list(map(lambda x: self.__get_node_by_nearest_contour_in_direction(cur_node, x), directions))
+		successors = []
+
+		# for direction in all_directions:
+		for direction in directions:
+			successors.append(self.__get_node(cur_node, direction))
+
+		# successors = list(map(lambda x: self.__get_node(cur_node, x), all_directions))
+		# successors = list(map(lambda x: self.__get_node(cur_node, x), directions))
 
 		return list(filter(lambda x: x is not None and self.__point_within_boundary(x), successors))
 
@@ -485,10 +249,10 @@ class PathFinder:
 		if self.previous is None or self.previous.boundary_points is None:
 			return True
 
-		if not self.user_settings.grade_in_direction:
-			pixel_point = self.grid.convert_grid_to_pixel_point(node.coord)
-		else:
+		if self.user_settings.node_method == NodeMethod.nearest_grade:
 			pixel_point = node.coord
+		else:
+			pixel_point = self.grid.convert_grid_to_pixel_point(node.coord)
 
 		previous_grid_point = self.previous.grid.convert_pixel_to_grid_point(pixel_point)
 
@@ -503,29 +267,153 @@ class PathFinder:
 		successor_node.f = successor_node.g + successor_node.h
 
 	def __position_already_reached_with_lower_heuristic(self, cur_node, reached_nodes):
-		temp = list(filter(lambda x: x.coord == cur_node.coord and x.f <= cur_node.f, reached_nodes))
-
-		if len(temp) > 0:
+		if cur_node in reached_nodes.keys() and reached_nodes[cur_node] < cur_node.f:
 			return True
 
 		return False
 
+	# node finding methods
+	def __get_node(self, start_node, direction):
+		if self.user_settings.node_method == NodeMethod.nearest_grade:
+			return self.__get_node_by_grade_in_direction(start_node, direction)
+		elif self.user_settings.node_method == NodeMethod.single_step:
+			return self.__get_node_by_single_step_in_direction(start_node, direction)
+		elif self.user_settings.node_method == NodeMethod.nearest_density_cell:
+			return self.__get_node_by_nearest_contour_in_direction(start_node, direction)
+		else:
+			return None
+
 	def __get_node_by_grade_in_direction(self, start_node, direction):
-		# first_contour_point, second_contour_point = self.__get_two_nearest_contour_points_in_direction(start_node.coord, direction)
+		first_contour_point, second_contour_point = self.__get_two_nearest_contour_points_in_direction(start_node.coord, direction)
 
-		# if first_contour_point is None or second_contour_point is None:
-		# 	return None
+		if first_contour_point is None or second_contour_point is None:
+			return None
 
-		# distance = self.__get_distance_between_points(first_contour_point, second_contour_point)
-		# grade = self.__get_grade_for_pixel_distance(distance)
+		distance = self.__get_distance_between_points(first_contour_point, second_contour_point)
+		grade = self.__get_grade_for_pixel_distance(distance)
 
-		# node = Node(second_contour_point, parent=start_node, grade=grade)
-		# node.num_contours = 2
-		# node.avg_distance = distance
-		# node.min_distance = distance
+		node = Node(second_contour_point, parent=start_node, grade=grade)
+		node.num_contours = 2
+		node.avg_distance = distance
+		node.min_distance = distance
 
 		return node
 
+	def __get_node_by_single_step_in_direction(self, start_node, direction):
+		point = self.__get_next_point(start_node.coord, direction)
+
+		if not self.__point_valid(point):
+			return None
+				
+		# start_point = self.grid.convert_grid_to_pixel_point(start_node.coord)
+		# end_point = self.grid.convert_grid_to_pixel_point(point)
+
+		# grade, num, avg_dist, min_dist = self.__get_grade_by_contours_between_endpoints(start_point, end_point, direction)
+
+		# node = Node(point, parent=start_node, grade = grade)
+		
+		# node.num_contours = num
+		# node.avg_distance = avg_dist
+		# node.min_distance = min_dist
+		node = Node(point, parent=start_node)
+		node.grade = self.__get_grade_by_grid_value(point)
+
+		return node
+
+	def __get_node_by_nearest_contour_in_direction(self, start_node, direction):
+		start_point = start_node.coord
+		nearest_node = None
+
+		while nearest_node is None:
+			cur_point = self.__get_next_point(start_point, direction)
+
+			if self.__point_valid(cur_point):
+				cur_cell = self.grid.get_cell(cur_point)
+
+				if cur_cell.density > 0 or cur_point == self.grid_end:
+					nearest_node = Node(cur_point, parent=start_node)
+				else:
+					start_point = cur_point
+			elif not self.__point_in_grid(cur_point) and \
+			not start_point == start_node.coord:
+				nearest_node = Node(start_point, parent=start_node)
+			else:
+				break
+
+		if nearest_node is not None:
+			nearest_node.grade = self.__get_grade_by_grid_value(nearest_node.coord)
+
+		return nearest_node
+
+	# grade calculation methods
+	def __get_grade_by_nearest_two_contours(self, start_point, direction):
+		first_contour_point, second_contour_point = self.__get_two_nearest_contour_points_in_direction(start_point, direction)
+
+		if first_contour_point is None or second_contour_point is None:
+			return 0, 0, 0, 0
+
+		distance = self.__get_distance_between_points(first_contour_point, second_contour_point)
+		grade = self.__get_grade_for_pixel_distance(distance)
+
+		return grade, 2, distance, distance
+
+	def __get_grade_by_contours_between_endpoints(self, start_point, end_point, direction):
+		cur_point = start_point + direction
+		min_distance = max(self.grid.resolution_x, self.grid.resolution_y) * self.grid.cell_width
+
+		num_contours = 0
+		avg_distance = 0
+
+		reached_end_point = False
+
+		while self.__point_in_grid(self.grid.convert_pixel_to_grid_point(cur_point)) and \
+		not reached_end_point:
+			if self.__contour_at_point(cur_point):
+				cur_distance = self.__get_pixel_distance_between_points(start_point, cur_point)
+				
+				if cur_distance < min_distance:
+					min_distance = cur_distance
+				
+				num_contours += 1
+				avg_distance = ((avg_distance * (num_contours-1)) + cur_distance) / num_contours
+
+				start_point = cur_point
+
+			cur_point += direction
+
+			if cur_point == end_point:
+				reached_end_point = True
+
+		# if avg_distance == 0:
+		# 	grade = 0
+		# else:
+		# 	grade = self.__get_grade_for_pixel_distance(avg_distance)
+		
+		if min_distance == max(self.grid.resolution_x, self.grid.resolution_y) * self.grid.cell_width:
+			grade = 0
+		else:
+			grade = self.__get_grade_for_pixel_distance(min_distance)
+
+		return grade, num_contours, avg_distance, min_distance
+
+	def __get_grade_by_grid_value(self, point):
+		pixel_point = self.grid.convert_grid_to_pixel_point(point)
+		cell = self.grade_grid.get_cell_from_pixel_point(pixel_point)
+
+		return cell.grade
+
+	def __get_grade_by_nearst_contour(self, start_point, direction):
+		nearest_density_point = self.__get_nearest_density_point(start_point, direction)
+
+		start = self.grid.convert_grid_to_pixel_point(start_point)
+		end = self.grid.convert_grid_to_pixel_point(nearest_density_point)
+
+		pixel_dist_to_density = self.__get_pixel_distance_between_points(start, end)
+		grade = self.__get_grade_for_pixel_distance(pixel_dist_to_density)
+
+		return grade
+
+	# other methods
 	def __get_two_nearest_contour_points_in_direction(self, point, direction):
 		first = second = None
 		
@@ -568,116 +456,32 @@ class PathFinder:
 
 		return False
 
-	def __get_node_single_step_in_direction(self, start_node, direction):
-		point = self.__get_next_point(start_node.coord, direction)
-
-		if not self.__point_valid(point):
-			return None
-				
-		start_point = self.grid.convert_grid_to_pixel_point(start_node.coord)
-		end_point = self.grid.convert_grid_to_pixel_point(point)
-
-		# grade, num_contours, avg_distance, min_distance = self.__get_grade_by_nearest_contour(start_point, end_point, direction)
-
-		grade, num_contours, avg_distance, min_distance = self.__get_grade_by_nearest_two_contours(start_point, direction)
-
-		node = Node(point, parent=start_node, grade = grade)
-		
-		node.num_contours = num_contours
-		node.avg_distance = avg_distance
-		node.min_distance = min_distance
-
-		return node
-
-	def __get_grade_by_nearest_two_contours(self, start_point, direction):
-		first_contour_point, second_contour_point = self.__get_two_nearest_contour_points_in_direction(start_point, direction)
-
-		if first_contour_point is None or second_contour_point is None:
-			return 0, 0, 0, 0
-
-		distance = self.__get_distance_between_points(first_contour_point, second_contour_point)
-		grade = self.__get_grade_for_pixel_distance(distance)
-
-		return grade, 2, distance, distance
-
-	def __get_grade_by_nearest_contour(self, start_point, end_point, direction):
-		cur_point = start_point + direction
-		min_distance = self.grid.grid_resolution * self.grid.cell_width
-
-		num_contours = 0
-		avg_distance = 0
-
-		reached_end_point = False
-
-		while self.__point_in_grid(self.grid.convert_pixel_to_grid_point(cur_point)) and \
-		not reached_end_point:
-			if self.__contour_at_point(cur_point):
-				cur_distance = self.__get_pixel_distance_between_points(start_point, cur_point)
-				
-				if cur_distance < min_distance:
-					min_distance = cur_distance
-				
-				num_contours += 1
-				avg_distance = ((avg_distance * (num_contours-1)) + cur_distance) / num_contours
-
-				start_point = cur_point
-
-			cur_point += direction
-
-			if cur_point == end_point:
-				reached_end_point = True
-
-		# if avg_distance == 0:
-		# 	grade = 0
-		# else:
-		# 	grade = self.__get_grade_for_pixel_distance(avg_distance)
-		
-		if min_distance == self.grid.grid_resolution * self.grid.cell_width:
-			grade = 0
-		else:
-			grade = self.__get_grade_for_pixel_distance(min_distance)
-
-		return grade, num_contours, avg_distance, min_distance
-
 	def __contour_at_point(self, point):
 		return self.user_settings.cropped_img.contours[point.x][point.y] > 0
-
-	def __get_node_by_nearest_contour_in_direction(self, start_node, direction):
-		start_point = start_node.coord
-		nearest_node = None
-
-		while nearest_node is None:
-			cur_point = self.__get_next_point(start_point, direction)
-
-			if self.__point_valid(cur_point):
-				cur_cell = self.grid.get_cell(cur_point)
-
-				if cur_cell.density > 0 or cur_point == self.grid_end:
-					nearest_node = Node(cur_point, parent=start_node)
-				else:
-					start_point = cur_point
-			elif not self.__point_in_grid(cur_point) and \
-			not start_point == start_node.coord:
-				nearest_node = Node(start_point, parent=start_node)
-			else:
-				break
-
-		return nearest_node
 
 	def __get_cost_between_nodes(self, start_node, end_node):
 		grade_cost = self.__get_grade_cost(start_node, end_node)
 		terrain_cost = self.__get_terrain_cost(end_node)
 		distance = self.__get_distance_between_points(start_node.coord, end_node.coord)
-		# print("grade_cost: " + str(grade_cost))
-		# print("terrain_cost: " + str(terrain_cost))
-		# print("distance_cost: " + str(distance))
-		# print("-------")
 
-		return grade_cost + terrain_cost + distance
+		total = ((grade_cost*10) + (terrain_cost*10) + distance) / 3
+
+		# if terrain_cost > 0:
+		# 	print("terrain_cost: " + str(terrain_cost*10))
+		# 	print("grade_cost: " + str(grade_cost*10))
+		# 	print("distance: " + str(distance))
+		# 	print("total: " + str(total))
+		# 	print("-------")
+
+		return total
 
 	def __get_distance_between_points(self, start_point, end_point):
-		if self.user_settings.grade_in_direction:
+		if self.user_settings.node_method == NodeMethod.nearest_grade:
 			return self.__get_pixel_distance_between_points(start_point, end_point)
+		elif self.user_settings.node_method == NodeMethod.single_step:
+			distance = self.__get_grid_distance_between_points(start_point, end_point)
+			distance /= PathFinder.diag_step_cost
+			return distance 
 		else:
 			return self.__get_grid_distance_between_points(start_point, end_point)
 
@@ -727,42 +531,32 @@ class PathFinder:
 		return True
 
 	def __get_grade_cost(self, start_node, end_node):
-		if self.user_settings.single_step or self.user_settings.grade_in_direction:
-			grade = end_node.grade
-		else:
-			grade = self.__get_grade_between_nodes(start_node, end_node)
+		grade = end_node.grade
 		
-		grade_cost = (grade / PathFinder.max_grade)
-		
+		grade_cost = grade / self.user_settings.max_grade
+
 		if grade > self.user_settings.max_grade:
 			grade_cost += PathFinder.max_cost
 
-		return grade_cost * 10
+		return grade_cost
 
 	def __get_terrain_cost(self, node):
-		if self.user_settings.grade_in_direction:
-			# print(node.coord)
-			cell_coord = self.grid.convert_pixel_to_grid_point(node.coord)
-		else:
-			cell_coord = node.coord
-
-		# print(cell_coord)
-		# print("---")
+		cell_coord = self.__convert_pixel_points([node.coord], on_nearest_grade = True)[0]
 		cell = self.grid.get_cell(cell_coord)
 
-		if self.user_settings.avoid_water:
-			water_cost = cell.water_density + PathFinder.max_cost
-		else:
-			water_cost = cell.water_density
+		water_cost = cell.water_density / self.grid.max_water_density
+		
+		if self.user_settings.avoid_water and cell.water_density > 0:
+			water_cost += PathFinder.max_cost
 
-		if self.user_settings.avoid_forrest:
-			forrest_cost = cell.forrest_density + PathFinder.max_cost
-		else:
-			forrest_cost = cell.forrest_density
+		forrest_cost = cell.forrest_density / self.grid.max_water_density
+		
+		if self.user_settings.avoid_forrest and cell.forrest_density > 0:
+			forrest_cost += PathFinder.max_cost
+		
+		terrain_cost = (water_cost + forrest_cost) / 2
 
-		terrain_cost = water_cost + forrest_cost
-
-		return terrain_cost * 10 
+		return terrain_cost 
 
 	def __get_grade_for_pixel_distance(self, pixel_dist):
 		feet_dist = (pixel_dist * self.user_settings.get_feet_per_pixel())
@@ -771,18 +565,6 @@ class PathFinder:
 		angle = math.degrees(theta)
 
 		grade = Helper.convert_angle_to_grade(angle)
-
-		return grade
-
-	def __get_grade_between_nodes(self, start_node, end_node):
-		direction = Point(end_node.coord.x - start_node.coord.x, end_node.coord.y - start_node.coord.y)
-		nearest_density_point = self.__get_nearest_density_point(start_node.coord, direction)
-
-		start = self.grid.convert_grid_to_pixel_point(start_node.coord)
-		end = self.grid.convert_grid_to_pixel_point(nearest_density_point)
-
-		pixel_dist_to_density = self.__get_pixel_distance_between_points(start, end)
-		grade = self.__get_grade_for_pixel_distance(pixel_dist_to_density)
 
 		return grade
 
@@ -829,13 +611,13 @@ class PathFinder:
 		if point is None:
 			return False
 
-		if point.x >= 0 and point.x < self.grid.grid_resolution and point.y >= 0 and point.y < self.grid.grid_resolution:
+		if point.x >= 0 and point.x < self.grid.resolution_x and point.y >= 0 and point.y < self.grid.resolution_y:
 			return True
 
 		return False
 
 	def __get_point_in_pixel_coord(self, point):
-		if self.user_settings.grade_in_direction:
+		if self.user_settings.node_method == NodeMethod.nearest_grade:
 			return point
 
 		return self.grid.convert_grid_to_pixel_point(point)
@@ -848,27 +630,36 @@ class PathFinder:
 			parent = node.parent
 			to_point = self.__get_point_in_pixel_coord(parent.coord)
 
-			print(self.grid.convert_pixel_to_grid_point(from_point))
-			print(self.grid.convert_pixel_to_grid_point(to_point))
-			print("grade: " + str(node.grade))
-			print("num contours: " + str(node.num_contours))
-			print("avg distance " + str(node.avg_distance))
-			print("min distance: " + str(node.min_distance))
-			print("-------")
-
-			if node.grade > self.user_settings.max_grade:
-				cv2.line(path_img,(from_point.x, from_point.y),(to_point.x, to_point.y),(0,0,255),2)
-			elif node.grade == 0:
-				cv2.line(path_img,(from_point.x, from_point.y),(to_point.x, to_point.y),(0,255,0),2)
-			else:	
-				cv2.line(path_img,(from_point.x, from_point.y),(to_point.x, to_point.y),(255,0,0),2)
+			# print(self.grid.convert_pixel_to_grid_point(from_point))
+			# print(self.grid.convert_pixel_to_grid_point(to_point))
 			
+			# print("grade: " + str(node.grade))
+			# print("g: " + str(node.g))
+			# print("h: " + str(node.h))
+			# print("num contours: " + str(node.num_contours))
+			# print("avg distance " + str(node.avg_distance))
+			# print("min distance: " + str(node.min_distance))
+			# print("-------")
+
+			if node.grade is not None:
+				if node.grade > self.user_settings.max_grade:
+					cv2.line(path_img,(from_point.y, from_point.x),(to_point.y, to_point.x),(0,0,255),2)
+				elif node.grade == 0:
+					cv2.line(path_img,(from_point.y, from_point.x),(to_point.y, to_point.x),(0,255,0),2)
+				else:	
+					cv2.line(path_img,(from_point.y, from_point.x),(to_point.y, to_point.x),(255,0,0),2)
+			else:
+				cv2.line(path_img,(from_point.y, from_point.x),(to_point.y, to_point.x),(255,0,0),2)
+
+			# print(self.grid.max_density)
+			# print(self.grid.max_water_density)
+			# print(self.grid.max_forrest_density)
 			# cv2.circle(path_img, (from_point.x,from_point.y), 3, (100,255,255), -1)
 
 			node = parent
 			from_point = to_point
 
-		print("min: " + str(self.min_pixel_dist))
+		# print("min: " + str(self.min_pixel_dist))
 
 		return path_img
 

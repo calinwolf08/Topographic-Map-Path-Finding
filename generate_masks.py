@@ -28,20 +28,23 @@ class ImageMasks:
 		cv2.imshow('green_mask', self.green_mask)
 
 class MaskGenerator:
-	low_blue = np.array([50, 35, 100])
-	high_blue = np.array([100, 150, 255])
+	low_blue = np.array([50, 35, 100], dtype=np.uint8)
+	high_blue = np.array([100, 150, 255], dtype=np.uint8)
 
-	low_black = np.array([0, 0, 0])
-	high_black = np.array([100, 75, 150])
+	low_black = np.array([0, 0, 0], dtype=np.uint8)
+	high_black = np.array([100, 75, 150], dtype=np.uint8)
 
-	low_red = np.array([0, 150, 150])
-	high_red = np.array([255, 255, 255])
+	low_red = np.array([0, 150, 150], dtype=np.uint8)
+	high_red = np.array([255, 255, 255], dtype=np.uint8)
 
-	low_green = np.array([20, 35, 100])
-	high_green = np.array([50, 150, 255])
+	low_green = np.array([20, 35, 100], dtype=np.uint8)
+	high_green = np.array([50, 150, 255], dtype=np.uint8)
 
 	def __init__(self, cv_image):
 		self.bgr_image = cv_image
+		print("aaaaaa")
+		print(self.bgr_image)
+		print("aaaaaa")
 		self.hsv_image = cv2.cvtColor(self.bgr_image, cv2.COLOR_BGR2HSV)
 		self.__temp_image = cv2.bitwise_xor(self.bgr_image, self.bgr_image)
 		self.dilate_array = (2 * Helper.resize_factor, 2 * Helper.resize_factor)

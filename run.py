@@ -6,6 +6,7 @@ from topographic_map import TopographicMap
 from path_finding import PathFinder, Grid
 from path_finding import UserSettings
 from cropped_image import CroppedImage
+from user_settings import UserSettings
 
 # TODO: user settings
 	# add interface to get user settings
@@ -87,6 +88,7 @@ def run(name):
 class UserInterface:
 	def __init__(self):
 		self.filename = None
+		self.commands = []
 
 	def start(self):
 		self.user_settings = UserSettings()
@@ -100,8 +102,12 @@ class UserInterface:
 		run = True
 
 		while run:
-			print("\n" + str(self.user_settings) + "\n")
-			command = input("Enter # to change a setting, r to run path finding, s to show images, q to quit\n")
+			if len(self.commands) == 0:
+				print("\n" + str(self.user_settings) + "\n")
+				command = input("Enter # to change a setting, r to run path finding, s to show images, q to quit. Or enter commands as a sequence. ex: rs -> run then show\n")
+				self.commands = list(command) 
+			
+			command = self.commands.pop(0)
 			
 			if command == "1":
 				self.filename = self.get_filename()
@@ -117,9 +123,7 @@ class UserInterface:
 			elif command == "6":
 				self.user_settings.cell_width = self.get_cell_width()
 			elif command == "7":
-				self.user_settings.grade_in_direction = not self.user_settings.grade_in_direction
-			elif command == "8":
-				self.user_settings.single_step = not self.user_settings.single_step
+				self.get_node_method()
 			elif command == "s":
 				self.show_images()
 			elif command == "r":
@@ -128,24 +132,16 @@ class UserInterface:
 				self.run()
 				end = time.time()
 				print("total path finding time: " + str(end - start))
-			elif command == "rs":
-				self.path_finder = None
-				start = time.time()
-				self.run()
-				end = time.time()
-				print("total path finding time: " + str(end - start))
-				self.show_images()
 			elif command == "q":
 				run = False
 			else:
 				print("command invalid")
 
 	def run(self):
-		self.user_settings.grade_in_direction = False
-		self.find_path_with_resolution(30, 1)
-		# self.find_path_with_resolution(30, 3)
-		# self.find_path_with_resolution(20, 2)
-		# self.find_path_with_resolution(10, 1)
+		# self.find_path_with_resolution(self.user_settings.cell_width, 2)
+		self.find_path_with_resolution(30, 3)
+		self.find_path_with_resolution(20, 2)
+		self.find_path_with_resolution(10, 1)
 		# self.find_path_with_resolution(5, 1)
 		
 
@@ -177,15 +173,18 @@ class UserInterface:
 			image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
 			grid_img = self.path_finder.grid.add_grid_to_image(image, 1)
 			grid_img2 = self.path_finder.grid.add_grid_to_image(path_img, 1)
-			# boundary_img = self.path_finder.grid.add_boundary_to_image(grid_img, self.path_finder.boundary_points)
-			# cv2.imshow("boundary" + str(time.time()), boundary_img)
+			density = self.path_finder.grid.add_density_to_image(path_img)
+			grade = self.path_finder.grade_grid.add_grade_to_image(density)
+			boundary_img = self.path_finder.grid.add_boundary_to_image(grid_img, self.path_finder.boundary_points)
 
-			heat_img = self.path_finder.grid.add_heat_map_to_image(path_img)
+			# heat_img = self.path_finder.grid.add_heat_map_to_image(path_img)
 
-			cv2.imshow("image" + str(time.time()), image)
-			cv2.imshow("grid" + str(time.time()), grid_img)
-			cv2.imshow("grid2" + str(time.time()), grid_img2)
-			cv2.imshow("heat" + str(time.time()), heat_img)
+			# cv2.imshow("image" + str(time.time()), image)
+			# cv2.imshow("grid" + str(time.time()), grid_img)
+			# cv2.imshow("grid2" + str(time.time()), grid_img2)
+			cv2.imshow("density" + str(time.time()), density)
+			cv2.imshow("grade" + str(time.time()), grade)
+			cv2.imshow("boundary" + str(time.time()), boundary_img)
 			cv2.imshow("path" + str(time.time()), path_img)
 
 	def set_user_settings(self):
@@ -229,6 +228,23 @@ class UserInterface:
 				print("Please enter a width greater than 0")
 
 		return int(width)
+
+	def get_node_method(self):
+		print("\t1) nearest grade")
+		print("\t2) single step")
+		print("\t3) nearest density cell")
+
+		method = input("Enter number for node method:\n")
+
+		if method == "1":
+			self.user_settings.node_method = PathFinder.nearest_grade
+		elif method == "2":
+			self.user_settings.node_method = PathFinder.single_step
+		elif method == "3":
+			self.user_settings.node_method = PathFinder.nearest_density_cell
+		else:
+			print("invalid method chosen: " + method + "\n")
+			self.get_node_method()
 
 if __name__ == '__main__':
 	user_interface = UserInterface()
