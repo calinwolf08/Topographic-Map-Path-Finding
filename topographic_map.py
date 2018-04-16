@@ -24,7 +24,7 @@ class ImageData:
 		# word_list, box_list = self.__get_words()
 		# self.word_list = word_list
 		# self.box_list = box_list
-		
+
 		self._contour_interval_dist = None
 		self._feet_per_pixel = None
 
@@ -152,8 +152,11 @@ class ImageData:
 class TopographicMap:
 	def __init__(self, filename):
 		self.filename = filename
-		self.image = cv2.imread(filename, 1)
+		self.image = cv2.imread(filename, 1)[500:-550, 500:-500]
 		self.image_data = ImageData(self.image)
+
+		self.height, self.width, self.channels = self.image.shape
+		
 
 if __name__ == '__main__':
 	img = Topographic_Map("SanLuisObispo.jpg")

@@ -14,8 +14,11 @@ class UserSettings:
 	def __init__(self):
 		self.topo_map = None
 
-		self.start = Point(350, 220)
-		self.end = Point(850, 700)
+		# self.start = Point(350, 220)
+		# self.end = Point(850, 700)
+		# self.end = Point(1377, 772)
+		self.start = Point(550, 435)
+		self.end = Point(1873, 1081)
 		self.cropped_img = None
 
 		self.avoid_water = False
@@ -54,7 +57,10 @@ class UserSettings:
 		self.topo_map = TopographicMap(filename)
 
 	def find_start_end_points(self):
-		self.temp_img = self.topo_map.image.copy()#[:][1500:]
+		self.temp_img = self.topo_map.image.copy()
+
+		self.temp_img = cv2.resize(self.temp_img, None, fx=2/5, fy=2/5, 
+			interpolation = cv2.INTER_LINEAR)
 
 		self.start = Point(-1, -1)
 		self.end = Point(-1, -1)
@@ -71,14 +77,10 @@ class UserSettings:
 				break
 
 		cv2.imshow("image", self.temp_img)
-		# print(self.start)
-		# print(self.end)
 
-		# self.start = Point(1385, 620)
-		# self.end = Point(1525, 462)
+		self.start *= 5/2
+		self.end *= 5/2
 
-		# self.start = Point(400, 400)
-		# self.end = Point(600, 600)
 		self.find_cropped_image()
 
 	def get_feet_per_pixel(self):
@@ -87,21 +89,37 @@ class UserSettings:
 	def get_contour_interval_dist(self):
 		return self.topo_map.image_data.contour_interval_dist
 
-	def find_cropped_image(self, padding = 100):
+	def find_cropped_image(self, padding = 200):
 		# get max of width and height of points
 		dist = max(abs(self.start.x - self.end.x), abs(self.start.y - self.end.y))
 
 		# calculate padding needed for each point  
-		yPad = int((dist - abs(self.start.y - self.end.y)) / 2) + padding
-		xPad = int((dist - abs(self.start.x - self.end.x)) / 2) + padding 
+		yPad = padding#int((dist - abs(self.start.y - self.end.y)) / 2) + padding
+		xPad = padding#int((dist - abs(self.start.x - self.end.x)) / 2) + padding 
+
+		# print(self.topo_map.width)
+		# print(self.topo_map.height)
+		# print("-----")
+
+		# print(self.start)
+		# print(self.end)
+		# print("-----")
+
+		# print(yPad)
+		# print(xPad)
+		# print("-----")
 
 		# crop image around start and end points with padding
-		minY = min(self.start.y, self.end.y) - yPad
-		maxY = max(self.start.y, self.end.y) + yPad
+		minY = max(min(self.start.y, self.end.y) - yPad, 0)
+		maxY = min(max(self.start.y, self.end.y) + yPad, self.topo_map.height)
 
-		minX = min(self.start.x, self.end.x) - xPad
-		maxX = max(self.start.x, self.end.x) + xPad
+		minX = max(min(self.start.x, self.end.x) - xPad, 0)
+		maxX = min(max(self.start.x, self.end.x) + xPad, self.topo_map.width)
 
+		# print(minY)
+		# print(maxY)
+		# print(minX)
+		# print(maxX)
 		img = self.topo_map.image[minY : maxY, minX : maxX]
 
 		# calculate start/end points for cropped image
@@ -128,15 +146,17 @@ class UserSettings:
 
 		# use ratios to find scaled start/end points 
 		self.cropped_img.start = Point(int(sxFactor * width), int(syFactor * height))
+		# self.cropped_img.start = Point(int(syFactor * height), int(sxFactor * width))
 		self.cropped_img.end = Point(int(exFactor * width), int(eyFactor * height))
+		# self.cropped_img.end = Point(int(eyFactor * height), int(exFactor * width))
 
 	def __click_image(self, event, x, y, flags, param):
 		if event == 1:
 			if self.start.x < 0:
 				cv2.circle(self.temp_img, (x,y), 5, (0,255,0), 2)
-				self.start.x = x #+ 1500
-				self.start.y = y #+ 1500
+				self.start.x = x
+				self.start.y = y
 			elif self.end.x < 0:
 				cv2.circle(self.temp_img, (x,y), 5, (0,0,255), 2)
-				self.end.x = x #+ 1500
-				self.end.y = y #+ 1500
+				self.end.x = x
+				self.end.y = y

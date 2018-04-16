@@ -29,10 +29,14 @@ class Grid:
 		self.initialize_array()
 
 	def get_cell(self, point):
-		if point.x >= 0 and point.x < len(self.array):
-			if point.y >= 00 and point.y < len(self.array[point.x]):
-				return self.array[point.x][point.y]		
+		if point.y >= 0 and point.y < len(self.array):
+			if point.x >= 0 and point.x < len(self.array[point.y]):
+				return self.array[point.y][point.x]		
 
+		print("bad point:")
+		print(len(self.array))
+		print(len(self.array[0]))
+		print(point)
 		return None
 
 	def get_cell_from_pixel_point(self, point):
@@ -41,8 +45,11 @@ class Grid:
 		return self.get_cell(grid_point)
 
 	def convert_pixel_to_grid_point(self, point):
+		# print(point)
 		x = int(point.x / self.cell_width)
 		y = int(point.y / self.cell_width)
+
+		# print(Point(x,y))
 
 		return Point(x,y)
 
@@ -132,7 +139,7 @@ class GradeGrid(Grid):
 				cell = self.get_cell(Point(c,r))
 
 				if cell.grade > self.max_grade:
-					cv2.circle(copy, (y,x), int(self.cell_width/2), (0,255,255), 1)
+					cv2.circle(copy, (x,y), int(self.cell_width/2), (0,255,255), 1)
 				# else:
 				# 	cv2.circle(copy, (y,x), int(self.cell_width/2), (122,255,255), 1)
 
@@ -181,10 +188,10 @@ class DensityGrid(Grid):
 				cell = self.get_cell(Point(c,r))
 
 				if cell.forrest_density > 0:
-					cv2.circle(copy, (y,x), int(self.cell_width/2), (0,255,0), 1)
+					cv2.circle(copy, (x,y), int(self.cell_width/2), (0,255,0), 1)
 
 				if cell.water_density > 0:
-					cv2.circle(copy, (y,x), int(self.cell_width/2), (255,0,0), 1)
+					cv2.circle(copy, (x,y), int(self.cell_width/2), (255,0,0), 1)
 
 		return copy
 
@@ -193,7 +200,7 @@ class DensityGrid(Grid):
 
 		for point in boundary_points:
 			pt = self.convert_grid_to_pixel_point(point)
-			cv2.circle(copy, (pt.y,pt.x), int(self.cell_width/2), (255,0,255), 2)
+			cv2.circle(copy, (pt.x,pt.y), int(self.cell_width/2), (255,0,255), 2)
 
 		return copy
 

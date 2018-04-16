@@ -131,15 +131,15 @@ class PathFinder:
 			closed_nodes[cur_node] = cur_node.f
 			count += 1
 
-			if count % 500 == 0:
-				print(count)
-				print("current place: " + str(self.grid.convert_pixel_to_grid_point(cur_node.coord)))
-				print("end_point: " + str(end_point))
-				print("distance: " + str(self.__get_distance_between_points(cur_node.coord, self.grid_end)))
-				print("successors: " + str(len(successors)))
-				print("open nodes: " + str(len(open_nodes)))
-				print("closed nodes: " + str(len(closed_nodes)))
-				print("---------")
+			# if count % 10 == 0:
+			# 	print(count)
+			# 	print("current place: " + str(self.grid.convert_pixel_to_grid_point(cur_node.coord)))
+			# 	print("end_point: " + str(end_point))
+			# 	print("distance: " + str(self.__get_distance_between_points(cur_node.coord, self.grid_end)))
+			# 	print("successors: " + str(len(successors)))
+			# 	print("open nodes: " + str(len(open_nodes)))
+			# 	print("closed nodes: " + str(len(closed_nodes)))
+			# 	print("---------")
 
 		return None
 
@@ -231,7 +231,7 @@ class PathFinder:
 		br = Point(1, 1)
 		brl = Point(1, 2)
 		
-		all_directions = [tl, tlr, tm, tr, trl, ml, mlt, mlb, mr, mrt, mrb, bl, blr, bm, br, brl]
+		#all_directions = [tl, tlr, tm, tr, trl, ml, mlt, mlb, mr, mrt, mrb, bl, blr, bm, br, brl]
 		directions = [tl, tm, tr, ml, mr, bl, bm, br]
 
 		successors = []
@@ -265,6 +265,7 @@ class PathFinder:
 		successor_node.g = cur_node.g + self.__get_cost_between_nodes(cur_node, successor_node)
 		successor_node.h = self.__get_distance_between_points(successor_node.coord, end_point)
 		successor_node.f = successor_node.g + successor_node.h
+		# successor_node.f = successor_node.h + cur_node.g
 
 	def __position_already_reached_with_lower_heuristic(self, cur_node, reached_nodes):
 		if cur_node in reached_nodes.keys() and reached_nodes[cur_node] < cur_node.f:
@@ -643,13 +644,13 @@ class PathFinder:
 
 			if node.grade is not None:
 				if node.grade > self.user_settings.max_grade:
-					cv2.line(path_img,(from_point.y, from_point.x),(to_point.y, to_point.x),(0,0,255),2)
+					cv2.line(path_img,(from_point.x, from_point.y),(to_point.x, to_point.y),(0,0,255),2)
 				elif node.grade == 0:
-					cv2.line(path_img,(from_point.y, from_point.x),(to_point.y, to_point.x),(0,255,0),2)
+					cv2.line(path_img,(from_point.x, from_point.y),(to_point.x, to_point.y),(0,255,0),2)
 				else:	
-					cv2.line(path_img,(from_point.y, from_point.x),(to_point.y, to_point.x),(255,0,0),2)
+					cv2.line(path_img,(from_point.x, from_point.y),(to_point.x, to_point.y),(255,0,0),2)
 			else:
-				cv2.line(path_img,(from_point.y, from_point.x),(to_point.y, to_point.x),(255,0,0),2)
+				cv2.line(path_img,(from_point.x, from_point.y),(to_point.x, to_point.y),(255,0,0),2)
 
 			# print(self.grid.max_density)
 			# print(self.grid.max_water_density)
@@ -664,7 +665,7 @@ class PathFinder:
 		return path_img
 
 	def set_boundary_points(self, node, distance):
-		points = []
+		points = {}
 		
 		cur_point = node.coord
 		cur_parent = node.parent
@@ -703,35 +704,5 @@ class PathFinder:
 			for y in range(point.y - distance, point.y + distance + 1):
 				cur_point = Point(x,y)
 				
-				if self.__point_in_grid(cur_point) and cur_point not in points:
-					points.append(cur_point)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+				if self.__point_in_grid(cur_point):
+					points[cur_point] = True

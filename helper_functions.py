@@ -16,6 +16,12 @@ class Point:
 	def __add__(self, point):
 		return Point(self.x + point.x, self.y + point.y)
 
+	def __mul__(self, other):
+		return Point(int(self.x * other), int(self.y * other))
+	
+	def __hash__(self):
+		return hash((self.x, self.y))
+
 class Helper:
 	resize_factor = 1
 

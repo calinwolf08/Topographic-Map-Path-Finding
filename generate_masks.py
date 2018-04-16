@@ -42,9 +42,6 @@ class MaskGenerator:
 
 	def __init__(self, cv_image):
 		self.bgr_image = cv_image
-		print("aaaaaa")
-		print(self.bgr_image)
-		print("aaaaaa")
 		self.hsv_image = cv2.cvtColor(self.bgr_image, cv2.COLOR_BGR2HSV)
 		self.__temp_image = cv2.bitwise_xor(self.bgr_image, self.bgr_image)
 		self.dilate_array = (2 * Helper.resize_factor, 2 * Helper.resize_factor)
