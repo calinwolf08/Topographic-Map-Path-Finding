@@ -194,7 +194,10 @@ class DensityGrid(Grid):
 					cv2.circle(copy, (x,y), int(self.cell_width/2), (0,255,0), 1)
 
 				if cell.water_density > 0:
-					cv2.circle(copy, (x,y), int(self.cell_width/2), (255,0,0), 1)
+					if cell.road_density > 0:
+						cv2.circle(copy, (x,y), int(self.cell_width/2), (255,0,255), 1)
+					else:
+						cv2.circle(copy, (x,y), int(self.cell_width/2), (255,0,0), 1)
 
 		return copy
 

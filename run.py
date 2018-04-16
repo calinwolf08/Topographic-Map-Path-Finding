@@ -149,7 +149,7 @@ class UserInterface:
 		h = img.shape[0]
 		w = img.shape[1]
 
-		max_h = 750
+		max_h = 500
 		num = int(h / max_h)
 
 		for i in range(num - 1):

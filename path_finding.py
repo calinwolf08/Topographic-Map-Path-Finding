@@ -31,6 +31,7 @@ class PathFinder:
 	step_cost = 1
 	diag_step_cost = math.sqrt(2)
 	max_cost = 10000
+	water_cost = 5000
 
 	nearest_grade = 1
 	single_step = 2
@@ -540,17 +541,22 @@ class PathFinder:
 		cell_coord = self.__convert_pixel_points([node.coord], on_nearest_grade = True)[0]
 		cell = self.grid.get_cell(cell_coord)
 
-		water_cost = cell.water_density / self.grid.max_water_density
-		
-		if self.user_settings.avoid_water and cell.water_density > 0 and cell.road_density < 0.1:
-			water_cost += PathFinder.max_cost
+		if cell.road_density == 0:
+			water_cost = cell.water_density / self.grid.max_water_density
+			
+			if self.user_settings.avoid_water and cell.water_density > 0:
+				water_cost += PathFinder.max_cost
+			elif cell.water_density > 0.1:
+				water_cost += PathFinder.water_cost
+		else:
+			water_cost = 0
 
 		forrest_cost = cell.forrest_density / self.grid.max_water_density
 		
 		if self.user_settings.avoid_forrest and cell.forrest_density > 0:
 			forrest_cost += PathFinder.max_cost
 		
-		terrain_cost = (water_cost + forrest_cost) / 2
+		terrain_cost = water_cost + forrest_cost
 
 		return terrain_cost 
 
