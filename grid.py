@@ -11,6 +11,7 @@ class DensityCell(Cell):
 		self.density = 0
 		self.water_density = 0
 		self.forrest_density = 0
+		self.road_density = 0
 
 class GradeCell(Cell):
 	def __init__(self, point):
@@ -176,6 +177,8 @@ class DensityGrid(Grid):
 
 		if cell.forrest_density > self.max_forrest_density:
 			self.max_forrest_density = cell.forrest_density
+
+		cell.road_density = self.get_image_density_at_cell(cell, self.cropped_img.image_masks.black_mask)
 
 	def add_density_to_image(self, img):
 		copy = img.copy()

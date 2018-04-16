@@ -59,7 +59,7 @@ class UserInterface:
 		while run:
 			if len(self.commands) == 0:
 				print("\n" + str(self.user_settings) + "\n")
-				message = "Enter # to change a setting, r to run path finding, s to show images, q to quit.Or enter commands as a sequence.\n"
+				message = "Enter # to change a setting, r to run path finding, d to display images, q to quit.Or enter commands as a sequence.\n"
 				message += "(ex: 1name 20,0,1,1 3 -> filename = name, start = (0,0), end = (1,1), flip avoid water)\n"
 				command = input(message)
 				self.commands = command.split() 
@@ -83,8 +83,8 @@ class UserInterface:
 				self.user_settings.cell_width = self.get_cell_width(option)
 			elif command == "7":
 				self.get_node_method(option)
-			elif command == "s":
-				self.show_images()
+			elif command == "d":
+				self.display_images()
 			elif command == "r":
 				self.path_finder = None
 				start = time.time()
@@ -117,9 +117,9 @@ class UserInterface:
 			print("no path found")
 		else:
 			self.path_finder.set_boundary_points(self.path, distance = boundary_distance)
-			# self.show_images()
+			# self.display_images()
 
-	def show_images(self):
+	def display_images(self):
 		if self.path_finder is None:
 			cv2.imshow("image" + str(time.time()), self.user_settings.cropped_img.cv_image)
 			# self.user_settings.cropped_img.image_masks.show_masks()
@@ -129,16 +129,17 @@ class UserInterface:
 			# image = self.user_settings.cropped_img.contours.copy()
 			# image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
 			# grid_img = self.path_finder.grid.add_grid_to_image(image, 1)
-			# density = self.path_finder.grid.add_density_to_image(path_img)
-			# grade = self.path_finder.grade_grid.add_grade_to_image(path_img)
+			density = self.path_finder.grid.add_density_to_image(path_img)
+			grade = self.path_finder.grade_grid.add_grade_to_image(path_img)
 			# boundary_img = self.path_finder.grid.add_boundary_to_image(grid_img, self.path_finder.boundary_points)
 
 			# cv2.imshow("contours" + str(time.time()), self.user_settings.cropped_img.contours)
-			# cv2.imshow("density" + str(time.time()), density)
 			# cv2.imshow("boundary" + str(time.time()), boundary_img)
 			# cv2.imshow("grade" + str(time.time()), grade)
 			# cv2.imshow("path" + str(time.time()), path_img)
 
+			self.draw_image("grade", grade)
+			self.draw_image("density", density)
 			self.draw_image("path", path_img)
 		
 		cv2.waitKey(1)

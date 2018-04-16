@@ -78,11 +78,6 @@ class PathFinder:
 		return converted_points
 
 	def find_path(self):
-		# print("pixel start: " + str(self.user_settings.start))
-		# print("pixel end: " + str(self.user_settings.end))
-		# self.grid_start = self.grid.convert_pixel_to_grid_point(self.user_settings.cropped_img.start)
-		# self.grid_end = self.grid.convert_pixel_to_grid_point(self.user_settings.cropped_img.end)
-
 		points = self.__convert_pixel_points([self.user_settings.cropped_img.start, self.user_settings.cropped_img.end])
 		self.grid_start = points[0]
 		self.grid_end = points[1]
@@ -547,7 +542,7 @@ class PathFinder:
 
 		water_cost = cell.water_density / self.grid.max_water_density
 		
-		if self.user_settings.avoid_water and cell.water_density > 0:
+		if self.user_settings.avoid_water and cell.water_density > 0 and cell.road_density < 0.1:
 			water_cost += PathFinder.max_cost
 
 		forrest_cost = cell.forrest_density / self.grid.max_water_density
