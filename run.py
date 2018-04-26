@@ -59,7 +59,7 @@ class UserInterface:
 		while run:
 			if len(self.commands) == 0:
 				print("\n" + str(self.user_settings) + "\n")
-				message = "Enter # to change a setting, r to run path finding, d to display images, q to quit.Or enter commands as a sequence.\n"
+				message = "Enter # to change a setting, r to run path finding, d to display images, q to quit. Or enter commands as a sequence.\n"
 				message += "(ex: 1name 20,0,1,1 3 -> filename = name, start = (0,0), end = (1,1), flip avoid water)\n"
 				command = input(message)
 				self.commands = command.split() 
@@ -91,12 +91,14 @@ class UserInterface:
 				self.run()
 				end = time.time()
 				print("total path finding time: " + str(end - start))
+			elif command == "p":
+				if self.path is not None:
+					self.print_stats()
 			elif command == "q":
 				run = False
 			else:
 				print("command invalid")
 
-	# circular, path length vs time spent
 	def run(self):
 		self.find_path_with_resolution(30, 3)
 		self.find_path_with_resolution(20, 2)
@@ -141,9 +143,23 @@ class UserInterface:
 			self.draw_image("grade", grade)
 			self.draw_image("density", density)
 			self.draw_image("path", path_img)
-		
+
 		cv2.waitKey(1)
 		cv2.destroyAllWindows()
+
+	def print_stats(self):
+		path_length_info, grade_info, terrain_info = self.path_finder.get_path_stats(self.path)
+		print("path length info:")
+		print("\tstraight path length: " + str(path_length_info.straight_path_length))
+		print("\tpath length: " + str(path_length_info.path_length))
+		print("\tnum nodes: " + str(path_length_info.num_nodes))
+		print("grade info:")
+		print("\tmax_grade: " + str(grade_info.max_grade))
+		print("\tavg_grade: " + str(grade_info.avg_grade))
+		print("terrain info:")
+		print("\thigh grade length: " + str(terrain_info.high_grade_length))
+		print("\twater steps: " + str(terrain_info.water_steps))
+		print("\tforrest steps: " + str(terrain_info.forrest_steps))
 
 	def draw_image(self, img_name, img):
 		h = img.shape[0]

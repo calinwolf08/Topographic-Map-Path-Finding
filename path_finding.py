@@ -477,7 +477,7 @@ class PathFinder:
 			return self.__get_pixel_distance_between_points(start_point, end_point)
 		elif self.user_settings.node_method == NodeMethod.single_step:
 			distance = self.__get_grid_distance_between_points(start_point, end_point)
-			distance /= PathFinder.diag_step_cost
+			# distance /= PathFinder.diag_step_cost
 			return distance 
 		else:
 			return self.__get_grid_distance_between_points(start_point, end_point)
@@ -545,16 +545,16 @@ class PathFinder:
 			water_cost = cell.water_density / self.grid.max_water_density
 			
 			if self.user_settings.avoid_water and cell.water_density > 0:
-				water_cost += PathFinder.max_cost
+				water_cost = (water_cost * water_cost * PathFinder.max_cost) + PathFinder.max_cost
 			elif cell.water_density > 0.1:
 				water_cost += PathFinder.water_cost
 		else:
 			water_cost = 0
 
-		forrest_cost = cell.forrest_density / self.grid.max_water_density
+		forrest_cost = cell.forrest_density / self.grid.max_forrest_density
 		
 		if self.user_settings.avoid_forrest and cell.forrest_density > 0:
-			forrest_cost += PathFinder.max_cost
+			forrest_cost = (forrest_cost * forrest_cost * PathFinder.max_cost) + PathFinder.max_cost
 		
 		terrain_cost = water_cost + forrest_cost
 
@@ -632,17 +632,6 @@ class PathFinder:
 			parent = node.parent
 			to_point = self.__get_point_in_pixel_coord(parent.coord)
 
-			# print(self.grid.convert_pixel_to_grid_point(from_point))
-			# print(self.grid.convert_pixel_to_grid_point(to_point))
-			
-			# print("grade: " + str(node.grade))
-			# print("g: " + str(node.g))
-			# print("h: " + str(node.h))
-			# print("num contours: " + str(node.num_contours))
-			# print("avg distance " + str(node.avg_distance))
-			# print("min distance: " + str(node.min_distance))
-			# print("-------")
-
 			if node.grade is not None:
 				if node.grade > self.user_settings.max_grade:
 					cv2.line(path_img,(from_point.x, from_point.y),(to_point.x, to_point.y),(0,0,255),2)
@@ -653,17 +642,63 @@ class PathFinder:
 			else:
 				cv2.line(path_img,(from_point.x, from_point.y),(to_point.x, to_point.y),(255,0,0),2)
 
-			# print(self.grid.max_density)
-			# print(self.grid.max_water_density)
-			# print(self.grid.max_forrest_density)
-			# cv2.circle(path_img, (from_point.x,from_point.y), 3, (100,255,255), -1)
-
 			node = parent
 			from_point = to_point
 
-		# print("min: " + str(self.min_pixel_dist))
-
 		return path_img
+
+	# (return straight path length, path length) 
+	# (max grade, avg grade)
+	# (path length in high grade, path length in water, path length in forrest)
+	def get_path_stats(self, node):
+		start = self.user_settings.cropped_img.start
+		end = self.user_settings.cropped_img.end
+
+		straight_distance = self.__get_pixel_distance_between_points(start, end)
+		total_distance = 0
+		
+		total_grade = 0
+		num_nodes = 0
+		max_grade = 0
+
+		total_distance_high_grade = 0
+		total_water_steps = 0
+		total_forrest_steps = 0
+
+		feet_per_pixel = self.user_settings.get_feet_per_pixel()
+		while node.parent is not None:
+			num_nodes += 1
+			
+			start = self.grid.convert_grid_to_pixel_point(node.coord)
+			end = self.grid.convert_grid_to_pixel_point(node.parent.coord)
+			cur_distance = self.__get_pixel_distance_between_points(start, end) * feet_per_pixel
+
+			total_distance += cur_distance
+
+			cell = self.grid.get_cell(node.coord) 
+			if cell.water_density > 0 and cell.road_density == 0:
+				total_water_steps += 1
+			if cell.forrest_density > 0:
+				total_forrest_steps += 1
+
+			if node.grade is not None:
+				total_grade += node.grade
+
+				if node.grade > max_grade:
+					max_grade = node.grade
+
+				if node.grade > self.user_settings.max_grade:
+					total_distance_high_grade += cur_distance
+	
+			node = node.parent
+
+		avg_grade = total_grade / num_nodes
+
+		path_length_info = PathLengthInfo(straight_distance, total_distance, num_nodes)
+		grade_info = GradeInfo(max_grade, avg_grade)
+		terrain_info = TerrainLengthInfo(total_distance_high_grade, total_water_steps, total_forrest_steps)
+
+		return path_length_info, grade_info, terrain_info
 
 	def set_boundary_points(self, node, distance):
 		points = {}
@@ -707,3 +742,18 @@ class PathFinder:
 				
 				if self.__point_in_grid(cur_point):
 					points[cur_point] = True
+
+class PathLengthInfo:
+	def __init__(self, straight_path_length, path_length, num_nodes):
+		self.straight_path_length = straight_path_length
+		self.path_length = path_length
+		self.num_nodes = num_nodes
+class GradeInfo:
+	def __init__(self, max_grade, avg_grade):
+		self.max_grade = max_grade
+		self.avg_grade = avg_grade
+class TerrainLengthInfo:
+	def __init__(self, high_grade_length, water_steps, forrest_steps):
+		self.high_grade_length = high_grade_length
+		self.water_steps = water_steps
+		self.forrest_steps = forrest_steps
