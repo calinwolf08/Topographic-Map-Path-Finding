@@ -98,12 +98,6 @@ class PathFinder:
 		open_nodes = {first_node: first_node.f}
 		closed_nodes = {}
 
-		count = 0
-
-		print("------")
-		print("grid start: " + str(self.grid_start))
-		print("grid end: " + str(self.grid_end))
-		# print("total cells: " + str(self.grid.resolution_x * self.grid.resolution_y))
 		while len(open_nodes) > 0:
 			cur_node = self.__get_minimum_node_key(open_nodes)
 			open_nodes.pop(cur_node)
@@ -125,17 +119,6 @@ class PathFinder:
 					open_nodes[successor] = successor.f
 
 			closed_nodes[cur_node] = cur_node.f
-			count += 1
-
-			# if count % 10 == 0:
-			# 	print(count)
-			# 	print("current place: " + str(self.grid.convert_pixel_to_grid_point(cur_node.coord)))
-			# 	print("end_point: " + str(end_point))
-			# 	print("distance: " + str(self.__get_distance_between_points(cur_node.coord, self.grid_end)))
-			# 	print("successors: " + str(len(successors)))
-			# 	print("open nodes: " + str(len(open_nodes)))
-			# 	print("closed nodes: " + str(len(closed_nodes)))
-			# 	print("---------")
 
 		return None
 
@@ -541,22 +524,24 @@ class PathFinder:
 		cell_coord = self.__convert_pixel_points([node.coord], on_nearest_grade = True)[0]
 		cell = self.grid.get_cell(cell_coord)
 
-		if cell.road_density == 0:
+		if cell.road_density == 0 or cell.water_density > 0.3:
 			water_cost = cell.water_density / self.grid.max_water_density
 			
 			if self.user_settings.avoid_water and cell.water_density > 0:
 				water_cost = (water_cost * water_cost * PathFinder.max_cost) + PathFinder.max_cost
-			elif cell.water_density > 0.1:
+			elif cell.water_density > 0.1 and cell.water_density < 0.4:
 				water_cost += PathFinder.water_cost
+			elif cell.water_density >= 0.4:
+				water_cost += PathFinder.max_cost * PathFinder.max_cost 
 		else:
 			water_cost = 0
 
-		forrest_cost = cell.forrest_density / self.grid.max_forrest_density
+		forest_cost = cell.forest_density / self.grid.max_forest_density
 		
-		if self.user_settings.avoid_forrest and cell.forrest_density > 0:
-			forrest_cost = (forrest_cost * forrest_cost * PathFinder.max_cost) + PathFinder.max_cost
+		if self.user_settings.avoid_forest and cell.forest_density > 0:
+			forest_cost = (forest_cost * forest_cost * PathFinder.max_cost) + PathFinder.max_cost
 		
-		terrain_cost = water_cost + forrest_cost
+		terrain_cost = water_cost + forest_cost
 
 		return terrain_cost 
 
@@ -649,23 +634,23 @@ class PathFinder:
 
 	# (return straight path length, path length) 
 	# (max grade, avg grade)
-	# (path length in high grade, path length in water, path length in forrest)
+	# (path length in high grade, path length in water, path length in forest)
 	def get_path_stats(self, node):
 		start = self.user_settings.cropped_img.start
 		end = self.user_settings.cropped_img.end
 
-		straight_distance = self.__get_pixel_distance_between_points(start, end)
+		feet_per_pixel = self.user_settings.get_feet_per_pixel()
+		straight_distance = self.__get_pixel_distance_between_points(start, end) * feet_per_pixel
 		total_distance = 0
 		
 		total_grade = 0
 		num_nodes = 0
 		max_grade = 0
 
-		total_distance_high_grade = 0
+		total_high_grade_steps = 0
 		total_water_steps = 0
-		total_forrest_steps = 0
+		total_forest_steps = 0
 
-		feet_per_pixel = self.user_settings.get_feet_per_pixel()
 		while node.parent is not None:
 			num_nodes += 1
 			
@@ -678,8 +663,8 @@ class PathFinder:
 			cell = self.grid.get_cell(node.coord) 
 			if cell.water_density > 0 and cell.road_density == 0:
 				total_water_steps += 1
-			if cell.forrest_density > 0:
-				total_forrest_steps += 1
+			if cell.forest_density > 0:
+				total_forest_steps += 1
 
 			if node.grade is not None:
 				total_grade += node.grade
@@ -688,7 +673,7 @@ class PathFinder:
 					max_grade = node.grade
 
 				if node.grade > self.user_settings.max_grade:
-					total_distance_high_grade += cur_distance
+					total_high_grade_steps += 1
 	
 			node = node.parent
 
@@ -696,7 +681,7 @@ class PathFinder:
 
 		path_length_info = PathLengthInfo(straight_distance, total_distance, num_nodes)
 		grade_info = GradeInfo(max_grade, avg_grade)
-		terrain_info = TerrainLengthInfo(total_distance_high_grade, total_water_steps, total_forrest_steps)
+		terrain_info = TerrainLengthInfo(total_high_grade_steps, total_water_steps, total_forest_steps)
 
 		return path_length_info, grade_info, terrain_info
 
@@ -753,7 +738,7 @@ class GradeInfo:
 		self.max_grade = max_grade
 		self.avg_grade = avg_grade
 class TerrainLengthInfo:
-	def __init__(self, high_grade_length, water_steps, forrest_steps):
-		self.high_grade_length = high_grade_length
+	def __init__(self, high_grade_steps, water_steps, forest_steps):
+		self.high_grade_steps = high_grade_steps
 		self.water_steps = water_steps
-		self.forrest_steps = forrest_steps
+		self.forest_steps = forest_steps

@@ -10,7 +10,7 @@ class DensityCell(Cell):
 		Cell.__init__(self, point)
 		self.density = 0
 		self.water_density = 0
-		self.forrest_density = 0
+		self.forest_density = 0
 		self.road_density = 0
 
 class GradeCell(Cell):
@@ -152,7 +152,7 @@ class DensityGrid(Grid):
 	def __init__(self, cropped_img, cell_width):
 		self.max_density = 0
 		self.max_water_density = 0
-		self.max_forrest_density = 0
+		self.max_forest_density = 0
 		Grid.__init__(self, cropped_img, cell_width)
 
 	def initialize_array(self):
@@ -173,10 +173,10 @@ class DensityGrid(Grid):
 		if cell.water_density > self.max_water_density:
 			self.max_water_density = cell.water_density
 
-		cell.forrest_density = self.get_image_density_at_cell(cell, self.cropped_img.image_masks.green_mask)
+		cell.forest_density = self.get_image_density_at_cell(cell, self.cropped_img.image_masks.green_mask)
 
-		if cell.forrest_density > self.max_forrest_density:
-			self.max_forrest_density = cell.forrest_density
+		if cell.forest_density > self.max_forest_density:
+			self.max_forest_density = cell.forest_density
 
 		cell.road_density = self.get_image_density_at_cell(cell, self.cropped_img.image_masks.black_mask)
 
@@ -190,7 +190,7 @@ class DensityGrid(Grid):
 
 				cell = self.get_cell(Point(c,r))
 
-				if cell.forrest_density > 0:
+				if cell.forest_density > 0:
 					cv2.circle(copy, (x,y), int(self.cell_width/2), (0,255,0), 1)
 
 				if cell.water_density > 0:

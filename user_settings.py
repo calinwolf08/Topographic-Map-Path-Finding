@@ -14,6 +14,8 @@ class UserSettings:
 	def __init__(self):
 		self.topo_map = None
 
+		self.save_image = False
+
 		# self.start = Point(350, 220)
 		# self.end = Point(850, 700)
 		# self.end = Point(1377, 772)
@@ -22,7 +24,7 @@ class UserSettings:
 		self.cropped_img = None
 
 		self.avoid_water = False
-		self.avoid_forrest = False
+		self.avoid_forest = False
 		self.max_grade = 30
 		self.cell_width = 30
 
@@ -32,7 +34,7 @@ class UserSettings:
 		ret = "1) filename: " + (self.topo_map.filename if self.topo_map is not None else "None") + "\n"
 		ret += "2) start/end: " + str(self.start) + " --> " + str(self.end) + "\n"
 		ret += "3) avoid water: " + str(self.avoid_water) + "\n"
-		ret += "4) avoid forrest: " + str(self.avoid_forrest) + "\n"
+		ret += "4) avoid forest: " + str(self.avoid_forest) + "\n"
 		ret += "5) max grade: " + str(self.max_grade) + "\n"
 		ret += "6) path precision (grid width): " + str(self.cell_width) + "\n"
 		ret += "7) node method: "
@@ -43,6 +45,8 @@ class UserSettings:
 			ret += "single step"
 		elif self.node_method == NodeMethod.nearest_density_cell:
 			ret += "nearest density cell"
+		
+		ret += "\n8) save image: " + str(self.save_image)
 
 		return ret
 
