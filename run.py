@@ -10,6 +10,7 @@ from cropped_image import CroppedImage
 from user_settings import UserSettings
 
 from helper_functions import Point
+from draw_route import draw_save_route
 
 # TODO: testing framework
 	# comparing path images
@@ -107,7 +108,7 @@ class UserInterface:
 		while run:
 			if len(self.commands) == 0:
 				print("\n" + str(self.user_settings) + "\n")
-				message = "Enter # to change a setting, r to run path finding, d to display images, p to print path stats, q to quit.\n"
+				message = "Enter # to change a setting, r to run path finding, c to draw route, d to display images, p to print path stats, q to quit.\n"
 				message += "Or enter commands as a sequence.\n"
 				message += "(ex: 1name 20,0,1,1 3 -> filename = name, start = (0,0), end = (1,1), flip avoid water)\n"
 				command = input(message)
@@ -144,6 +145,8 @@ class UserInterface:
 				end = time.time()
 				self.run_time.total_time = end-start
 				print("total path finding time: " + str(end - start))
+			elif command == "c":
+				draw_save_route(self.user_settings.start, self.user_settings.end, self.user_settings.topo_map)
 			elif command == "p":
 				if self.path is not None:
 					self.print_stats()
@@ -277,6 +280,7 @@ class UserInterface:
 		start = user_settings.cropped_img.start
 		end = user_settings.cropped_img.end
 		return str(start.x) + "_" + str(start.y) + "to" + str(end.x) + "_" + str(end.y)
+	
 	@staticmethod
 	def terrain_to_path_string(user_settings):
 		ret = ""
