@@ -1,11 +1,12 @@
 import cv2
 import time
 import os
+import numpy as np
 from helper_functions import Point
 from cropped_image import CroppedImage
 from topographic_map import TopographicMap
 
-def find_cropped_image(start, end, topo_map, padding = 200):
+def find_cropped_image(start, end, topo_map, padding = 500):
     # calculate padding needed for each point  
     yPad = padding
     xPad = padding
@@ -63,8 +64,49 @@ class DrawRoute:
         self.cur_end_point = None
         self.points = []
     
-    def draw_route(self):
-        self.temp_img = self.image.copy()
+    def draw_route_in_pieces(self):
+        h = self.image.shape[0]
+        w = self.image.shape[1]
+
+        max_h = 750
+        num = int(h / max_h)
+
+        temp_image = self.image.copy()
+        points = []
+
+        for i in range(num - 1):
+            start = i*max_h
+            end = start + max_h
+
+            img, ps = self.draw_route(temp_image[start:end,:])
+
+            for p in ps:
+                points.append(Point(p.x, p.y+start))
+            
+        start = (num-1) * max_h
+
+        img, ps = self.draw_route(temp_image[start:,:])
+
+        for p in ps:
+            points.append(Point(p.x, p.y+start))
+
+        first = True
+        prev = None
+        for p in points:
+            cv2.circle(temp_image, (p.x,p.y), 5, (255,0,0), 2)
+            if first:
+                first = False
+            else:
+                cv2.line(temp_image, (prev.x, prev.y),(p.x, p.y),(255,0,0),2)
+            prev = p
+
+        return temp_image, points
+
+    def draw_route(self, image):
+        self.temp_img = image.copy()
+        self.cur_start_point = None
+        self.cur_end_point = None
+        self.points = []
 
         cv2.namedWindow("image")
         cv2.setMouseCallback("image", self.__click_image)
@@ -78,7 +120,6 @@ class DrawRoute:
                 break
         
         cv2.destroyAllWindows()
-
         return self.temp_img, self.points
 
     def __click_image(self, event, x, y, flags, param):
@@ -99,7 +140,7 @@ class DrawRoute:
 
 def get_drawn_route(start, end, topo_map):
     cropped_image = find_cropped_image(start, end, topo_map)
-    route_image, points = DrawRoute(cropped_image.cv_image).draw_route()
+    route_image, points = DrawRoute(cropped_image.cv_image).draw_route_in_pieces()
 
     return route_image, points
 
@@ -116,11 +157,13 @@ def draw_save_route(start, end, topo_map):
     
     num = len([x for x in os.listdir(path)]) + 1
     cv2.imwrite(path + '/drawn' + str(int(num/2)) + '.png', route_image)
-    out = open(path + "/points" + str(int(num/2)) + '.csv', 'w')
+    out = open(path + "/data" + str(int(num/2)) + '.csv', 'w')
 
     t = input("enter completion time:")
+    m = input("enter mile length:")
+    n = input("enter initial:")
 
-    out.write("x,y," + str(t) + "\n")
+    out.write("x,y," + str(t) + ',' + str(m) + ',' + str(n) + "\n")
 
     for p in points:
         out.write(str(p.x) + "," + str(p.y) + "\n")

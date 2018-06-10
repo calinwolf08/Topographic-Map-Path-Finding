@@ -47,7 +47,7 @@ class ImageData:
 
 	def __get_countour_interval_dist(self):
 		candidates = []
- 		
+
 		for word, offset in self.__words_offsets:
 			candidates += self.__find_candidates_for_id_and_index(self.word_list, word, offset)
 
@@ -132,6 +132,7 @@ class ImageData:
 		# 	self._contour_interval_dist = self.__get_countour_interval_dist()
 
 		# return self._contour_interval_dist
+		# return 40
 		return 40
 
 	@contour_interval_dist.setter
@@ -153,11 +154,43 @@ class TopographicMap:
 	def __init__(self, filename):
 		self.filename = filename
 		self.image = cv2.imread(filename, 1)[500:-550, 500:-500]
+		# self.image = cv2.imread(filename, 1)#[500:-550, 500:-500]
 		self.image_data = ImageData(self.image)
 
 		self.height, self.width, self.channels = self.image.shape
 		
 
 if __name__ == '__main__':
-	img = Topographic_Map("SanLuisObispo.jpg")
-	print(img.countour_interval_dist)
+	# img = Topographic_Map("SanLuisObispo.jpg")
+	import numpy as np
+	import time
+	image = cv2.imread('maps/SanLuisObispo.jpg', 1)[500:1000, 500:1300]
+	r, c, chan = image.shape
+	tl = image[:int(r/2), :int(c/2)]
+	tr = image[:int(r/2), int(c/2):]
+	bl = image[int(r/2):, :int(c/2)]
+	br = image[int(r/2):, int(c/2):]
+	
+	s = time.time()
+	img = cv2.fastNlMeansDenoising(image, None, 5, 7, 21)
+	e = time.time()
+
+	print("total image: " + str(e-s))
+
+	s = time.time()
+	tl = cv2.fastNlMeansDenoising(tl, None, 5, 7, 21)
+	tr = cv2.fastNlMeansDenoising(tr, None, 5, 7, 21)
+	bl = cv2.fastNlMeansDenoising(bl, None, 5, 7, 21)
+	br = cv2.fastNlMeansDenoising(br, None, 5, 7, 21)
+	e = time.time()
+
+	top = np.concatenate((tl, tr), axis=1)
+	bottom = np.concatenate((bl, br), axis=1)
+	new_image = np.concatenate((top, bottom), axis=0)
+
+	print("partitioned image: " + str(e-s))
+
+	cv2.imshow('img', img)
+	cv2.imshow('new_image', new_image)
+	cv2.waitKey(0)
+	cv2.destroyAllWindows()

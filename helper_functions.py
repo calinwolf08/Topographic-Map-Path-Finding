@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 import math
+import time
 
 class Point:
 	def __init__(self, x, y):
@@ -24,6 +25,7 @@ class Point:
 
 class Helper:
 	resize_factor = 1
+	MAX_CONTOURS = 10000
 
 	@staticmethod
 	def convert_image_to_mask(image):
@@ -63,14 +65,38 @@ class Helper:
 
 		cv2.waitKey(0)
 		cv2.destroyAllWindows()
-
+#2242,152,2190,1612 d r p
+#21170,315,180,2002 r
 	@staticmethod
 	def reduce_image_contours(mask, minArea, line_thickness = 1):
 		img, contours, hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-		contours = list(filter(lambda c: cv2.contourArea(c) > minArea, contours))
-		reduced = cv2.bitwise_xor(mask, mask)
-		# cv2.drawContours(reduced, contours, -1, (255,255,255), cv2.FILLED)
-		cv2.drawContours(reduced, contours, -1, (255,255,255), line_thickness)
+
+		if len(contours) < Helper.MAX_CONTOURS:
+			contours = list(filter(lambda c: cv2.contourArea(c) > minArea, contours))
+			reduced = cv2.bitwise_xor(mask, mask)
+			# cv2.drawContours(reduced, contours, -1, (255,255,255), cv2.FILLED)
+			start = time.time()
+			cv2.drawContours(reduced, contours, -1, (255,255,255), line_thickness)
+			end = time.time()
+			# print('reduce: ' + str(len(contours)) + ": " + str(end-start))
+		else:
+			r, c = mask.shape
+
+			tl = mask[:int(r/2), :int(c/2)]
+			tl = Helper.reduce_image_contours(tl, minArea, line_thickness)
+
+			tr = mask[:int(r/2), int(c/2):]
+			tr = Helper.reduce_image_contours(tr, minArea, line_thickness)
+
+			bl = mask[int(r/2):, :int(c/2)]
+			bl = Helper.reduce_image_contours(bl, minArea, line_thickness)
+
+			br = mask[int(r/2):, int(c/2):]
+			br = Helper.reduce_image_contours(br, minArea, line_thickness)
+
+			top = np.concatenate((tl, tr), axis=1)
+			bottom = np.concatenate((bl, br), axis=1)
+			reduced = np.concatenate((top, bottom), axis=0)
 		
 		return reduced
 

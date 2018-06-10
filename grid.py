@@ -17,6 +17,9 @@ class GradeCell(Cell):
 	def __init__(self, point):
 		Cell.__init__(self, point)
 		self.grade = 0
+		self.r_grade = None
+		self.b_grade = None
+		self.rb_grade = None
 
 class Grid:
 	def __init__(self, cropped_img, cell_width):
@@ -46,22 +49,26 @@ class Grid:
 		return self.get_cell(grid_point)
 
 	def convert_pixel_to_grid_point(self, point):
-		# print(point)
 		x = int(point.x / self.cell_width)
 		y = int(point.y / self.cell_width)
 
-		# print(Point(x,y))
+		if x >= self.resolution_x:
+			x = self.resolution_x - 1
+
+		if y >= self.resolution_y:
+			y = self.resolution_y - 1
 
 		return Point(x,y)
 
 	def convert_grid_to_pixel_point(self, point):
 		x = (point.x * self.cell_width) + int(self.cell_width/2)
-		y = point.y * self.cell_width + int(self.cell_width/2)
+		y = (point.y * self.cell_width) + int(self.cell_width/2)
 
 		return Point(x,y)
 
 	def initialize_array(self):
 		self.array = [[Cell(Point(x,y)) for x in range(self.resolution_x)] for y in range(self.resolution_y)]
+		self.extra_array = [[Cell(Point(x,y)) for x in range((2*self.resolution_x)-1)] for y in range((2*self.resolution_y)-1)]
 
 	def get_image_density_at_cell(self, cell, mask):
 		cell_image = self.get_cell_covered_image(cell.point, mask)
@@ -87,12 +94,12 @@ class Grid:
 
 		i = 0
 		while i <= row - self.cell_width:
-			cv2.line(copy,(0,i),(col,i),(0,255,0),lineThickness)
+			cv2.line(copy,(0,i),(col,i),(255,0,0),lineThickness)
 			i += self.cell_width
 
 		j = 0
 		while j <= col - self.cell_width:
-			cv2.line(copy,(j,0),(j,row),(0,255,0),lineThickness)
+			cv2.line(copy,(j,0),(j,row),(255,0,0),lineThickness)
 			j += self.cell_width
 
 		return copy
@@ -119,15 +126,107 @@ class GradeGrid(Grid):
 
 		return density_for_max_grade
 
+	def get_density_from_cell_image(self, cell_image):
+		non_zero_pixels = cv2.countNonZero(cell_image)
+		total_pixels = self.cell_width * self.cell_width
+
+		return non_zero_pixels / total_pixels
+
+	def get_image_density_at_cell(self, cell, mask):
+		cell_image = self.get_cell_covered_image(cell.point, mask, 0, 0)
+		density = self.get_density_from_cell_image(cell_image)
+
+		if cell.point.x < self.resolution_x - 1:
+			r_cell_image = self.get_cell_covered_image(cell.point, mask, int(self.cell_width/2), 0)
+			r_density = self.get_density_from_cell_image(r_cell_image)
+		else:
+			r_density = None
+
+		if cell.point.y < self.resolution_y - 1:
+			b_cell_image = self.get_cell_covered_image(cell.point, mask, 0, int(self.cell_width/2))
+			b_density = self.get_density_from_cell_image(b_cell_image)
+		else:
+			b_density = None
+
+		if r_density is not None and b_density is not None:
+			rb_cell_image = self.get_cell_covered_image(cell.point, mask, int(self.cell_width/2), int(self.cell_width/2))
+			rb_density = self.get_density_from_cell_image(rb_cell_image)
+		else:
+			rb_density = None
+
+		return (density, r_density, b_density, rb_density)
+
+	def get_cell_covered_image(self, point, mask, x_offset, y_offset):
+		minY = point.y * self.cell_width + y_offset
+		maxY = minY + self.cell_width
+		minX = point.x * self.cell_width + x_offset
+		maxX = minX + self.cell_width
+
+		cell_image = mask[minY:maxY, minX:maxX]
+
+		return cell_image
+
 	def __initialize_cell_grade(self, cell):
-		density = self.get_image_density_at_cell(cell, self.cropped_img.contours)
+		(density, r_density, b_density, rb_density) = self.get_image_density_at_cell(cell, self.cropped_img.contours)
 		cell.grade = self.__get_cell_grade_from_density(density)
+		cell.r_grade = self.__get_cell_grade_from_density(r_density)
+		cell.b_grade = self.__get_cell_grade_from_density(b_density)
+		cell.rb_grade = self.__get_cell_grade_from_density(rb_density) 
 
 	def __get_cell_grade_from_density(self, density):
+		if density is None:
+			return None
+
 		grade_density = density / self.density_for_max_grade
 		grade = grade_density * self.max_grade
 
 		return grade
+	
+	def get_cell_grade_in_direction(self, cell, direction):
+		next_p = cell.point + direction
+
+		if next_p.x < 0 or next_p.x >= self.resolution_x or next_p.y < 0 or next_p.y >= self.resolution_y:
+			return cell.grade
+
+		# r
+		if direction == Point(1,0):
+			# return (cell.grade + cell.r_grade) / 2
+			return max(cell.grade,cell.r_grade)
+		# b
+		elif direction == Point(0, 1):
+			# return (cell.grade + cell.b_grade) / 2
+			return max(cell.grade, cell.b_grade)
+		# br
+		elif direction == Point(1, 1):
+			# return (cell.grade + cell.rb_grade) / 2
+			return max(cell.grade, cell.rb_grade)
+		# l
+		elif direction == Point(-1, 0):
+			c = self.get_cell(cell.point + direction)
+			# return (cell.grade + c.r_grade) / 2
+			return max(cell.grade, c.r_grade)
+		# t
+		elif direction == Point(0, -1):
+			c = self.get_cell(cell.point + direction)
+			# return (cell.grade + c.b_grade) / 2
+			return max(cell.grade, c.b_grade)
+		# bl
+		elif direction == Point(-1, 1):
+			c = self.get_cell(cell.point + Point(-1,0)) # need point to left
+			# return (cell.grade + c.rb_grade) / 2
+			return max(cell.grade, c.rb_grade)
+		# tr
+		elif direction == Point(1, -1):
+			c = self.get_cell(cell.point + Point(0,-1)) # need point above
+			# return (cell.grade + c.rb_grade) / 2
+			return max(cell.grade, c.rb_grade)
+		# tl
+		elif direction == Point(-1, -1):
+			c = self.get_cell(cell.point + Point(-1,-1)) # need point tl
+			# return (cell.grade + c.rb_grade) / 2
+			return max(cell.grade, c.rb_grade)
+		
+		return cell.grade
 
 	def add_grade_to_image(self, img):
 		copy = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)

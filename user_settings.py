@@ -91,27 +91,19 @@ class UserSettings:
 		return self.topo_map.image_data.feet_per_pixel
 
 	def get_contour_interval_dist(self):
-		return self.topo_map.image_data.contour_interval_dist
+		if self.topo_map.filename == "maps/Ambrose.jpg":
+			return 10
+		else:
+			return 40
+		# return self.topo_map.image_data.contour_interval_dist
 
-	def find_cropped_image(self, padding = 200):
+	def find_cropped_image(self, padding = 700):
 		# get max of width and height of points
 		dist = max(abs(self.start.x - self.end.x), abs(self.start.y - self.end.y))
 
 		# calculate padding needed for each point  
 		yPad = padding#int((dist - abs(self.start.y - self.end.y)) / 2) + padding
 		xPad = padding#int((dist - abs(self.start.x - self.end.x)) / 2) + padding 
-
-		# print(self.topo_map.width)
-		# print(self.topo_map.height)
-		# print("-----")
-
-		# print(self.start)
-		# print(self.end)
-		# print("-----")
-
-		# print(yPad)
-		# print(xPad)
-		# print("-----")
 
 		# crop image around start and end points with padding
 		minY = max(min(self.start.y, self.end.y) - yPad, 0)
@@ -120,10 +112,6 @@ class UserSettings:
 		minX = max(min(self.start.x, self.end.x) - xPad, 0)
 		maxX = min(max(self.start.x, self.end.x) + xPad, self.topo_map.width)
 
-		# print(minY)
-		# print(maxY)
-		# print(minX)
-		# print(maxX)
 		img = self.topo_map.image[minY : maxY, minX : maxX]
 
 		# calculate start/end points for cropped image
@@ -140,19 +128,13 @@ class UserSettings:
 		# width/height of cropped and rescaled image
 		width *= Helper.resize_factor
 		height *= Helper.resize_factor
-
-		# scale image by resize factor
-		# img = cv2.resize(img, None, fx=Helper.resize_factor, fy=Helper.resize_factor, 
-		# 	interpolation = cv2.INTER_LINEAR)
 		
 		# init cropped_img for extracting contours, etc.		
 		self.cropped_img = CroppedImage(img)
 
 		# use ratios to find scaled start/end points 
 		self.cropped_img.start = Point(int(sxFactor * width), int(syFactor * height))
-		# self.cropped_img.start = Point(int(syFactor * height), int(sxFactor * width))
 		self.cropped_img.end = Point(int(exFactor * width), int(eyFactor * height))
-		# self.cropped_img.end = Point(int(eyFactor * height), int(exFactor * width))
 
 	def __click_image(self, event, x, y, flags, param):
 		if event == 1:

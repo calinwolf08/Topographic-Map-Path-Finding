@@ -2,6 +2,7 @@ import cv2
 import time
 import sys
 import os
+import pickle
 
 from topographic_map import TopographicMap
 from path_finding import PathFinder, GradeGrid
@@ -55,8 +56,9 @@ class RunTime:
 		self.total_time = 0
 
 class DataEntry:
-	def __init__(self, run_time, path_length_info, grade_info, terrain_info, user_settings):
+	def __init__(self, run_time, algorithm_info, path_length_info, grade_info, terrain_info, user_settings):
 		self.run_time = run_time
+		self.algorithm_info = algorithm_info
 		self.path_length_info = path_length_info
 		self.grade_info = grade_info
 		self.terrain_info = terrain_info
@@ -76,6 +78,9 @@ class DataEntry:
 			ret += str(self.run_time.path_times[3])
 		ret += ","
 		ret += str(self.run_time.total_time) + ","
+
+		ret += str(self.algorithm_info.avg_cost) + "," + str(self.algorithm_info.max_cost) + ","
+		ret += str(self.algorithm_info.avg_cost_in_bounds) + "," + str(self.algorithm_info.max_cost_in_bounds) + ","
 		
 		ret += str(self.path_length_info.straight_path_length) + "," + str(self.path_length_info.path_length) + "," + str(self.path_length_info.num_nodes) + ","
 		
@@ -141,7 +146,9 @@ class UserInterface:
 				self.path_finder = None
 				self.run_time = RunTime()
 				start = time.time()
+				print('--------running--------')
 				self.run()
+				print('-----------------------')
 				end = time.time()
 				self.run_time.total_time = end-start
 				print("total path finding time: " + str(end - start))
@@ -152,24 +159,87 @@ class UserInterface:
 					self.print_stats()
 			elif command == "q":
 				run = False
+			elif command == "s":
+				self.save_stuff()
 			else:
 				print("command invalid")
 		
 		if self.user_settings.save_image and len(self.data) > 0:
 			self.write_data()
+	
+	def save_stuff(self):
+
+		path = 'presentation/images/' + UserInterface.points_to_path_string(self.user_settings)
+
+		if not os.path.exists(path):
+			os.makedirs(path)
+
+		image_masks = self.user_settings.cropped_img.image_masks
+
+		blue_mask = image_masks.blue_mask
+		black_mask = image_masks.black_mask
+		red_mask = image_masks.red_mask
+		green_mask = image_masks.green_mask
+
+		path_img = self.path_finder.draw_path(self.path)
+		cost_tmp = self.path_finder.draw_costs()
+		cost_img = self.path_finder.draw_path(self.path, cost_tmp.copy())
+		density = self.path_finder.grid.add_density_to_image(self.user_settings.cropped_img.cv_image.copy())
+		density_path = self.path_finder.grid.add_density_to_image(path_img)
+		grid_img = self.path_finder.grid.add_grid_to_image(self.user_settings.cropped_img.cv_image.copy(), 1)
+
+		image = cv2.cvtColor(self.user_settings.cropped_img.contours, cv2.COLOR_GRAY2BGR)
+		grade = self.path_finder.grade_grid.add_grade_to_image(image)
+		grade_path = self.path_finder.grade_grid.add_grade_to_image(path_img)
+		boundary_img = self.path_finder.grid.add_boundary_to_image(grid_img, self.path_finder.boundary_points)
+
+		temp = self.user_settings.cropped_img.cv_image.copy()
+		start = self.user_settings.cropped_img.start
+		end = self.user_settings.cropped_img.end
+		cv2.circle(temp, (start.x,start.y), 15, (0,255,0), -1)
+		cv2.circle(temp, (end.x,end.y), 15, (0,0,255), -1)
+
+		cv2.imwrite(path + '/image.png', temp)
+		cv2.imwrite(path + '/contours.png', self.user_settings.cropped_img.contours)
+		cv2.imwrite(path + '/blue.png', blue_mask)
+		cv2.imwrite(path + '/black.png', black_mask)
+		cv2.imwrite(path + '/green.png', green_mask)
+		cv2.imwrite(path + '/red.png', red_mask)
+		cv2.imwrite(path + '/path.png', path_img)
+		cv2.imwrite(path + '/cost.png', cost_img)
+		cv2.imwrite(path + '/density.png', density)
+		cv2.imwrite(path + '/grade.png', grade)
+		cv2.imwrite(path + '/grid.png', grid_img)
+		cv2.imwrite(path + '/boundary.png', boundary_img)
+		cv2.imwrite(path + '/grade_path.png', grade_path)
+		cv2.imwrite(path + '/density_path.png', density_path)
+
+		for step in image_masks.steps:
+			name = step[0]
+			img = step[1]
+			cv2.imwrite(path + '/' + name + '.png', img)
+
+		for step in self.user_settings.cropped_img.contour_extractor.steps:
+			name = step[0]
+			img = step[1]
+			cv2.imwrite(path + '/' + name + '.png', img)
 
 	def run(self):
-		self.find_path_with_resolution(30, 3)
+		self.user_settings.cropped_img.generate_masks()
+		self.user_settings.cropped_img.generate_contours()
+
+		self.find_path_with_resolution(30, 2)
 		self.find_path_with_resolution(20, 2)
+		# self.find_path_with_resolution(10, 1)
 
 		if self.user_settings.save_image:
 			self.save_path()
 
 	def find_path_with_resolution(self, resolution, boundary_distance):
+		start = time.time()
 		self.user_settings.cell_width = resolution
 		self.path_finder = PathFinder(self.user_settings, previous = self.path_finder)
 
-		start = time.time()
 		self.path = self.path_finder.find_path()
 		end = time.time()
 
@@ -186,15 +256,17 @@ class UserInterface:
 	def display_images(self):
 		if self.path_finder is None:
 			cv2.imshow("image" + str(time.time()), self.user_settings.cropped_img.cv_image)
+			cv2.imshow("contours" + str(time.time()), self.user_settings.cropped_img.contours)
 			# self.user_settings.cropped_img.image_masks.show_masks()
 		else:
-			path_img = self.path_finder.draw_path(self.path)
-
-			# image = self.user_settings.cropped_img.contours.copy()
-			# image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-			# grid_img = self.path_finder.grid.add_grid_to_image(image, 1)
-			density = self.path_finder.grid.add_density_to_image(path_img)
-			grade = self.path_finder.grade_grid.add_grade_to_image(path_img)
+			cost_img = self.path_finder.draw_costs()
+			path_img1 = self.path_finder.draw_path(self.path, cost_img.copy())
+			path_img2 = self.path_finder.draw_path(self.path)
+			image = self.user_settings.cropped_img.contours.copy()
+			image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+			grid_img = self.path_finder.grid.add_grid_to_image(image, 1)
+			density = self.path_finder.grid.add_density_to_image(path_img2)
+			grade = self.path_finder.grade_grid.add_grade_to_image(path_img2)
 			# boundary_img = self.path_finder.grid.add_boundary_to_image(grid_img, self.path_finder.boundary_points)
 
 			# cv2.imshow("contours" + str(time.time()), self.user_settings.cropped_img.contours)
@@ -204,14 +276,21 @@ class UserInterface:
 
 			self.draw_image("grade", grade)
 			self.draw_image("density", density)
-			self.draw_image("path", path_img)
+			self.draw_image("grid", grid_img)
+			self.draw_image("cost", path_img1)
+			self.draw_image("path", path_img2)
 
 		cv2.waitKey(1)
 		cv2.destroyAllWindows()
 
 	def print_stats(self):
 		feet_per_mile = 5280
-		path_length_info, grade_info, terrain_info = self.path_finder.get_path_stats(self.path)
+		algorithm_info, path_length_info, grade_info, terrain_info = self.path_finder.get_path_stats(self.path)
+		print("algorithm info:")
+		print("\tavg cost: " + str(algorithm_info.avg_cost))
+		print("\tmax cost: " + str(algorithm_info.max_cost))
+		print("\tavg cost in bounds: " + str(algorithm_info.avg_cost_in_bounds))
+		print("\tmax cost in bounds: " + str(algorithm_info.max_cost_in_bounds))
 		print("path length info:")
 		print("\tstraight path length: " + str(path_length_info.straight_path_length / feet_per_mile) + " miles")
 		print("\tpath length: " + str(path_length_info.path_length / feet_per_mile) + " miles")
@@ -241,6 +320,9 @@ class UserInterface:
 		path = "images/"+self.filename[5:-4] + "/" + UserInterface.points_to_path_string(self.user_settings) +\
 			"/" + UserInterface.terrain_to_path_string(self.user_settings)
 		
+		print(path)
+		print('***********')
+
 		if not os.path.exists(path):
 			os.makedirs(path)
 
@@ -254,8 +336,8 @@ class UserInterface:
 		# cv2.imwrite(path + '/red.png', red_mask)
 		# cv2.imwrite(path + '/green.png', green_mask)
 
-		path_length_info, grade_info, terrain_info = self.path_finder.get_path_stats(self.path)
-		data_entry = DataEntry(self.run_time, path_length_info, grade_info, terrain_info, self.user_settings)
+		algorithm_info, path_length_info, grade_info, terrain_info = self.path_finder.get_path_stats(self.path)
+		data_entry = DataEntry(self.run_time, algorithm_info, path_length_info, grade_info, terrain_info, self.user_settings)
 
 		self.data.append(data_entry)
 
@@ -264,6 +346,7 @@ class UserInterface:
 
 		header = "filename,start-end points (x-ytox-y),"
 		header += "grid size 30 time (s),grid size 20 time (s),grid size 10 time (s),grid size 5 time (s),total time (s),"
+		header += "average cost,max cost, average cost in bounds, max cost in bounds,"
 		header += "straight distance (ft),path length (ft),num nodes,"
 		header += "max grade,avg grade,"
 		header += "high grade steps,water steps,forest steps,"
@@ -277,26 +360,28 @@ class UserInterface:
 		out.close()
 	@staticmethod
 	def points_to_path_string(user_settings):
-		start = user_settings.cropped_img.start
-		end = user_settings.cropped_img.end
+		start = user_settings.start
+		end = user_settings.end
 		return str(start.x) + "_" + str(start.y) + "to" + str(end.x) + "_" + str(end.y)
 	
 	@staticmethod
 	def terrain_to_path_string(user_settings):
-		ret = ""
-
+		ret = str(user_settings.max_grade)
+		
+		if not user_settings.avoid_water and not user_settings.avoid_forest:
+			ret += "nothing"
 		if user_settings.avoid_water:
 			ret += "water"
 		if user_settings.avoid_forest:
 			ret += "forest"
-
-		return ret if len(ret) > 0 else "nothing"
+		
+		return ret
 
 	def draw_image(self, img_name, img):
 		h = img.shape[0]
 		w = img.shape[1]
 
-		max_h = 500
+		max_h = 750
 		num = int(h / max_h)
 
 		for i in range(num - 1):
@@ -316,8 +401,11 @@ class UserInterface:
 			self.user_settings.find_start_end_points()
 		else:
 			vals = option.split(',')
+			# self.user_settings.start = Point(int(vals[0])+500, int(vals[1])+500)
+			# self.user_settings.end = Point(int(vals[2])+500, int(vals[3])+500)
 			self.user_settings.start = Point(int(vals[0]), int(vals[1]))
 			self.user_settings.end = Point(int(vals[2]), int(vals[3]))
+			self.user_settings.find_cropped_image()
 
 	def get_filename(self, option=None):
 		if option is None or len(option) == 0:

@@ -9,17 +9,20 @@ from grid import Grid, DensityGrid, GradeGrid
 from user_settings import UserSettings, NodeMethod
 
 class Node:
-	def __init__(self, point, f=0.0, g=0.0, h=0.0, parent=None, grade = None):
+	def __init__(self, point, f=0.0, g=0.0, h=0.0, c=0.0, parent=None, grade = None):
 		self.coord = point
 		self.f = f
 		self.g = g
 		self.h = h
+		self.c = c
 		self.parent = parent
 		self.grade = grade
 
 		self.num_contours = 0
 		self.avg_distance = 0
 		self.min_distance = 0
+
+		self.in_bounds = True # true if node isn't breaking user settings
 
 	def __eq__(self, other):
 		return self.coord == other.coord
@@ -31,7 +34,7 @@ class PathFinder:
 	step_cost = 1
 	diag_step_cost = math.sqrt(2)
 	max_cost = 10000
-	water_cost = 5000
+	terrain_cost = 5000
 
 	nearest_grade = 1
 	single_step = 2
@@ -47,6 +50,7 @@ class PathFinder:
 		# self.grade_grid = GradeGrid(user_settings.cropped_img, user_settings.cell_width, user_settings.max_grade, self.min_pixel_dist)
 		self.grade_grid = GradeGrid(user_settings.cropped_img, self.min_pixel_dist, user_settings.max_grade, self.min_pixel_dist)
 
+		print('min contour: ' + str(self.min_pixel_dist))
 	@classmethod
 	def run_from_user_settings(cls, user_settings):
 		path_finder = cls(user_settings)
@@ -80,27 +84,35 @@ class PathFinder:
 
 	def find_path(self):
 		points = self.__convert_pixel_points([self.user_settings.cropped_img.start, self.user_settings.cropped_img.end])
-		self.grid_start = points[0]
-		self.grid_end = points[1]
+		self.grid_start = Point(points[0].x, points[0].y)
+		self.grid_end = Point(points[1].x, points[1].y)
+
+		# print(self.grid_start)
+		# print(self.grid_end)
+		# print(self.__point_in_grid(self.grid_start))
+		# print(self.__point_in_grid(self.grid_end))
+		# print(self.grid.resolution_x)
+		# print(self.grid.resolution_y)
+		# print(self.grid.cell_width)
 
 		return self.__calculate_path()
 
 	def find_path_from_pixel_coords(self, start_point, end_point):
 		points = self.__convert_pixel_points([self.user_settings.cropped_img.start, self.user_settings.cropped_img.end])
-		self.grid_start = points[0]
-		self.grid_end = points[1]
+		self.grid_start = points[0].copy()
+		self.grid_end = points[1].copy()
 
 		return self.__calculate_path()
 
 	def __calculate_path(self):
 		first_node = Node(self.grid_start)
 
-		open_nodes = {first_node: first_node.f}
-		closed_nodes = {}
+		self.open_nodes = {first_node: first_node.f}
+		self.closed_nodes = {}
 
-		while len(open_nodes) > 0:
-			cur_node = self.__get_minimum_node_key(open_nodes)
-			open_nodes.pop(cur_node)
+		while len(self.open_nodes) > 0:
+			cur_node = self.__get_minimum_node_key(self.open_nodes)
+			self.open_nodes.pop(cur_node)
 			successors = self.__generate_successor_nodes(cur_node)
 
 			for successor in successors:
@@ -109,16 +121,17 @@ class PathFinder:
 				end_point = points[1]
 
 				if cur_point == end_point:
-					# print("reached end: " + str(cur_point))
+					print("open nodes: " + str(len(self.open_nodes)))
+					print("closed nodes: " + str(len(self.closed_nodes)))
 					return successor
-
+					
 				self.__calculate_heuristic(cur_node, successor, self.grid_end)
 
-				if not self.__position_already_reached_with_lower_heuristic(successor, open_nodes) and \
-				not self.__position_already_reached_with_lower_heuristic(successor, closed_nodes):
-					open_nodes[successor] = successor.f
+				if not self.__position_already_reached_with_lower_heuristic(successor, self.open_nodes) and \
+				not self.__position_already_reached_with_lower_heuristic(successor, self.closed_nodes):
+					self.open_nodes[successor] = successor.f
 
-			closed_nodes[cur_node] = cur_node.f
+			self.closed_nodes[cur_node] = cur_node.f
 
 		return None
 
@@ -241,7 +254,8 @@ class PathFinder:
 		return False
 
 	def __calculate_heuristic(self, cur_node, successor_node, end_point):
-		successor_node.g = cur_node.g + self.__get_cost_between_nodes(cur_node, successor_node)
+		successor_node.c = self.__get_cost_between_nodes(cur_node, successor_node)
+		successor_node.g = cur_node.g + successor_node.c
 		successor_node.h = self.__get_distance_between_points(successor_node.coord, end_point)
 		successor_node.f = successor_node.g + successor_node.h
 		# successor_node.f = successor_node.h + cur_node.g
@@ -296,7 +310,7 @@ class PathFinder:
 		# node.avg_distance = avg_dist
 		# node.min_distance = min_dist
 		node = Node(point, parent=start_node)
-		node.grade = self.__get_grade_by_grid_value(point)
+		node.grade = self.__get_grade_by_grid_value(point, direction)
 
 		return node
 
@@ -375,12 +389,14 @@ class PathFinder:
 			grade = self.__get_grade_for_pixel_distance(min_distance)
 
 		return grade, num_contours, avg_distance, min_distance
-
-	def __get_grade_by_grid_value(self, point):
+#2205,140,935,852 r d
+#2235,2425,2032,1395 r d
+	def __get_grade_by_grid_value(self, point, direction):
 		pixel_point = self.grid.convert_grid_to_pixel_point(point)
 		cell = self.grade_grid.get_cell_from_pixel_point(pixel_point)
 
-		return cell.grade
+		# return cell.grade
+		return self.grade_grid.get_cell_grade_in_direction(cell, direction)
 
 	def __get_grade_by_nearst_contour(self, start_point, direction):
 		nearest_density_point = self.__get_nearest_density_point(start_point, direction)
@@ -444,7 +460,12 @@ class PathFinder:
 		terrain_cost = self.__get_terrain_cost(end_node)
 		distance = self.__get_distance_between_points(start_node.coord, end_node.coord)
 
-		total = ((grade_cost*10) + (terrain_cost*10) + distance) / 3
+		# print(grade_cost)
+		# print(terrain_cost)
+		# print(distance)
+		# print('------')
+		total = ((grade_cost*10) + (10*terrain_cost) + distance) / 3
+		# total = ((grade_cost*10) + (terrain_cost*10) + distance) / 3
 
 		# if terrain_cost > 0:
 		# 	print("terrain_cost: " + str(terrain_cost*10))
@@ -512,34 +533,57 @@ class PathFinder:
 
 	def __get_grade_cost(self, start_node, end_node):
 		grade = end_node.grade
-		
+
 		grade_cost = grade / self.user_settings.max_grade
 
 		if grade > self.user_settings.max_grade:
-			grade_cost += PathFinder.max_cost
-
+			grade_cost = PathFinder.max_cost + (grade_cost * grade_cost * PathFinder.max_cost)
+			end_node.in_bounds = False
+		# elif grade_cost > 0:
+		# 	if grade_cost > 0:
+		# 		print('grade: ' + str(grade_cost))
+		# print('grade: ' + str(grade_cost))
 		return grade_cost
 
 	def __get_terrain_cost(self, node):
 		cell_coord = self.__convert_pixel_points([node.coord], on_nearest_grade = True)[0]
 		cell = self.grid.get_cell(cell_coord)
 
-		if cell.road_density == 0 or cell.water_density > 0.3:
-			water_cost = cell.water_density / self.grid.max_water_density
-			
-			if self.user_settings.avoid_water and cell.water_density > 0:
-				water_cost = (water_cost * water_cost * PathFinder.max_cost) + PathFinder.max_cost
-			elif cell.water_density > 0.1 and cell.water_density < 0.4:
-				water_cost += PathFinder.water_cost
-			elif cell.water_density >= 0.4:
-				water_cost += PathFinder.max_cost * PathFinder.max_cost 
-		else:
-			water_cost = 0
+		# if cell.road_density < 0.05 or cell.water_density > 0.3:
+		water_cost = cell.water_density / self.grid.max_water_density
+		
+		# if cell.road_density == 0:
+		if cell.water_density > 0.3:
+			water_cost += PathFinder.max_cost * PathFinder.max_cost
+			node.in_bounds = False
+		elif self.user_settings.avoid_water and cell.water_density > 0:
+			water_cost = PathFinder.max_cost + (water_cost * water_cost * PathFinder.max_cost)
+			node.in_bounds = False
 
+		# if cell.road_density == 0 or cell.water_density > 0.3:
+			
+		# 	if self.user_settings.avoid_water and cell.water_density > 0:
+		# 		water_cost = PathFinder.max_cost + (water_cost * water_cost * PathFinder.max_cost)
+		# 		node.in_bounds = False
+		# 	# elif cell.water_density > 0.0 and cell.water_density < 0.3:
+		# 	# # elif cell.water_density > 0.1 and cell.water_density < 0.4:
+		# 	# 	water_cost = PathFinder.terrain_cost + (water_cost * PathFinder.terrain_cost)
+		# 	elif cell.water_density >= 0.3:
+		# 	# elif cell.water_density >= 0.4:
+		# 		water_cost += PathFinder.max_cost * PathFinder.max_cost
+		# 		node.in_bounds = False
+		
 		forest_cost = cell.forest_density / self.grid.max_forest_density
 		
 		if self.user_settings.avoid_forest and cell.forest_density > 0:
 			forest_cost = (forest_cost * forest_cost * PathFinder.max_cost) + PathFinder.max_cost
+			node.in_bounds = False
+		# elif cell.forest_density > 0:
+		# 	forest_cost += PathFinder.terrain_cost + (forest_cost * PathFinder.terrain_cost)
+		# else:
+		# 	# forest_cost = 100*cell.forest_density
+		# if forest_cost > 0:
+		# 	print('forest: ' + str(forest_cost))
 		
 		terrain_cost = water_cost + forest_cost
 
@@ -609,21 +653,97 @@ class PathFinder:
 
 		return self.grid.convert_grid_to_pixel_point(point)
 
-	def draw_path(self, node):
-		path_img = self.user_settings.cropped_img.cv_image.copy()
+	def draw_costs(self, cost_img=None):
+		if cost_img is None:
+			cost_img = self.user_settings.cropped_img.cv_image.copy()
+
+		points = set()
+		max_c = 0
+		max_cb = 0
+		max_cb2 = 0
+
+		for n in list(self.open_nodes.keys()) + list(self.closed_nodes.keys()):
+			if n.c > PathFinder.max_cost * PathFinder.max_cost:
+				if n.c > max_cb2:
+					max_cb2 = n.c
+			elif n.c > PathFinder.max_cost:
+				if n.c > max_cb:
+					max_cb = n.c
+			else:
+				if n.c > max_c:
+					max_c = n.c
+
+			points.add(n)
+
+		print("points: " +  str(len(points)) + ": " + str(self.grid.cell_width))
+		
+		offset = int(self.grid.cell_width/2)
+
+		a = 0
+		b = 0
+		c = 0
+		for n in points:
+			if n.c >= PathFinder.max_cost*PathFinder.max_cost:
+				cost = n.c / (max_cb2 if max_cb2 > 0 else 1)
+				# color = (int(255 * cost), int(255 * (1-cost)), 0)
+				color = (150 + int(105 * cost), 0, 0)
+				a+=1
+				# print('a')
+			elif n.c > PathFinder.max_cost:
+				cost = n.c / max_cb
+				# color = (0, int(255 * cost), int(255 * (1-cost)))
+				color = (0, 0, 100 + int(155 * cost))
+				b+=1
+				# print('b')
+			else:
+				cost = n.c / max_c
+				# color = (int(255 * (1-cost)), 0, int(255 * cost))
+				color = (0, 0 + int(255 * cost), 0)
+				c+=1
+				# print('c')
+
+			p = self.grid.convert_grid_to_pixel_point(n.coord)
+
+			pt1 = (p.x - offset, p.y - offset)
+			pt2 = (p.x + offset, p.y + offset)
+
+			# print(n.c)
+			# print(cost)
+			# print(color)
+			# print('----')
+			# print("(" + str(p.x) + ", " + str(p.y) + ")")
+			# cv2.rectangle(cost_img, pt1, pt2, color, thickness=-1)
+			cv2.circle(cost_img, (p.x,p.y), int(self.grid.cell_width/2), color, 2)
+
+		print(a)
+		print(b)
+		print(c)
+		print('------')
+		print(max_cb2)
+		print(max_cb)
+		print(max_c)
+		print('-----')
+		return cost_img
+#2205,140,935,852 r d
+	def draw_path(self, node, path_img = None):
+		if path_img is None:
+			path_img = self.user_settings.cropped_img.cv_image.copy()
 		from_point = self.__get_point_in_pixel_coord(node.coord)
 
 		while node.parent is not None:
 			parent = node.parent
 			to_point = self.__get_point_in_pixel_coord(parent.coord)
 
+			# print("f: " + str(node.f) + ", g: " + str(node.g) + ", h: " + str(node.h))
+
 			if node.grade is not None:
-				if node.grade > self.user_settings.max_grade:
-					cv2.line(path_img,(from_point.x, from_point.y),(to_point.x, to_point.y),(0,0,255),2)
-				elif node.grade == 0:
-					cv2.line(path_img,(from_point.x, from_point.y),(to_point.x, to_point.y),(0,255,0),2)
-				else:	
-					cv2.line(path_img,(from_point.x, from_point.y),(to_point.x, to_point.y),(255,0,0),2)
+				cv2.line(path_img,(from_point.x, from_point.y),(to_point.x, to_point.y),(0,0,255),2)
+				# if node.grade > self.user_settings.max_grade:
+				# 	cv2.line(path_img,(from_point.x, from_point.y),(to_point.x, to_point.y),(0,0,255),2)
+				# elif node.grade == 0:
+				# 	cv2.line(path_img,(from_point.x, from_point.y),(to_point.x, to_point.y),(0,255,0),2)
+				# else:	
+				# 	cv2.line(path_img,(from_point.x, from_point.y),(to_point.x, to_point.y),(255,0,0),2)
 			else:
 				cv2.line(path_img,(from_point.x, from_point.y),(to_point.x, to_point.y),(255,0,0),2)
 
@@ -647,6 +767,11 @@ class PathFinder:
 		num_nodes = 0
 		max_grade = 0
 
+		total_cost = 0
+		total_cost_in_bounds = 0
+		max_cost = 0
+		max_cost_in_bounds = 0
+
 		total_high_grade_steps = 0
 		total_water_steps = 0
 		total_forest_steps = 0
@@ -666,6 +791,15 @@ class PathFinder:
 			if cell.forest_density > 0:
 				total_forest_steps += 1
 
+			total_cost += node.g
+			if node.g > max_cost:
+				max_cost = node.g
+
+			if node.in_bounds:
+				total_cost_in_bounds += node.g
+				if node.g > max_cost_in_bounds:
+					max_cost_in_bounds = node.g
+
 			if node.grade is not None:
 				total_grade += node.grade
 
@@ -679,11 +813,15 @@ class PathFinder:
 
 		avg_grade = total_grade / num_nodes
 
+		avg_cost = total_cost / num_nodes
+		avg_cost_in_bounds = total_cost_in_bounds / num_nodes
+
+		algorithm_info = AlgorithmInfo(avg_cost, max_cost, avg_cost_in_bounds, max_cost_in_bounds)
 		path_length_info = PathLengthInfo(straight_distance, total_distance, num_nodes)
 		grade_info = GradeInfo(max_grade, avg_grade)
 		terrain_info = TerrainLengthInfo(total_high_grade_steps, total_water_steps, total_forest_steps)
 
-		return path_length_info, grade_info, terrain_info
+		return algorithm_info, path_length_info, grade_info, terrain_info
 
 	def set_boundary_points(self, node, distance):
 		points = {}
@@ -728,6 +866,12 @@ class PathFinder:
 				if self.__point_in_grid(cur_point):
 					points[cur_point] = True
 
+class AlgorithmInfo:
+	def __init__(self, avg_cost, max_cost, avg_cost_in_bounds, max_cost_in_bounds):
+		self.avg_cost_in_bounds = avg_cost_in_bounds
+		self.max_cost_in_bounds = max_cost_in_bounds
+		self.avg_cost = avg_cost
+		self.max_cost = max_cost
 class PathLengthInfo:
 	def __init__(self, straight_path_length, path_length, num_nodes):
 		self.straight_path_length = straight_path_length
